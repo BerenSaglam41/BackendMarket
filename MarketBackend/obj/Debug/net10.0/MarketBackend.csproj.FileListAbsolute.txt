@@ -169,3 +169,4 @@
 /Users/mustafaberen41/Desktop/Backend/MarketBackend/bin/Debug/net10.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
 /Users/mustafaberen41/Desktop/Backend/MarketBackend/bin/Debug/net10.0/Microsoft.IdentityModel.Tokens.dll
 /Users/mustafaberen41/Desktop/Backend/MarketBackend/bin/Debug/net10.0/System.IdentityModel.Tokens.Jwt.dll
+/Users/mustafaberen41/Desktop/Backend/MarketBackend/obj/Debug/net10.0/MarketBackend.sourcelink.json

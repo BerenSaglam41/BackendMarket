@@ -1,17 +1,24 @@
 using FluentValidation;
 using MarketBackend.Models.DTOs;
 
+namespace MarketBackend.Validators;
+
+/// <summary>
+/// Admin ürün oluşturma validasyonu - Sadece ürün tanımı (fiyat/stok SellerProduct'ta)
+/// </summary>
 public class ProductCreateValidator : AbstractValidator<ProductCreateDto>
 {
     public ProductCreateValidator()
     {
-         RuleFor(p => p.Name)
+        RuleFor(p => p.Name)
             .NotEmpty().WithMessage("Ürün adı zorunludur.")
             .MaximumLength(150).WithMessage("Ürün adı en fazla 150 karakter olabilir.");
 
         RuleFor(p => p.Slug)
             .NotEmpty().WithMessage("Slug zorunludur.")
-            .MaximumLength(180).WithMessage("Slug en fazla 180 karakter olabilir.");
+            .MaximumLength(180).WithMessage("Slug en fazla 180 karakter olabilir.")
+            .Matches(@"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+            .WithMessage("Slug sadece küçük harf, rakam ve tire içerebilir.");
 
         RuleFor(p => p.Description)
             .MaximumLength(2000).WithMessage("Açıklama en fazla 2000 karakter olabilir.");
@@ -20,14 +27,9 @@ public class ProductCreateValidator : AbstractValidator<ProductCreateDto>
             .GreaterThan(0).When(p => p.BrandId.HasValue)
             .WithMessage("Geçerli bir marka ID belirtilmelidir.");
 
-        RuleFor(p => p.OriginalPrice)
-            .GreaterThan(0).WithMessage("Orijinal fiyat sıfırdan büyük olmalıdır.");
-
-        RuleFor(p => p.DiscountPercentage)
-            .InclusiveBetween(0, 100).WithMessage("İndirim oranı 0–100 arasında olmalıdır.");
-
-        RuleFor(p => p.StockQuantity)
-            .GreaterThanOrEqualTo(0).WithMessage("Stok miktarı negatif olamaz.");
+        RuleFor(p => p.CategoryId)
+            .GreaterThan(0).When(p => p.CategoryId.HasValue)
+            .WithMessage("Geçerli bir kategori ID belirtilmelidir.");
 
         RuleFor(p => p.ImageUrl)
             .Must(url => Uri.IsWellFormedUriString(url, UriKind.Absolute))
