@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MarketBackend.Data;
 using MarketBackend.Models;
+using MarketBackend.Models.Common;
 using MarketBackend.Models.DTOs;
 using System.Text.Json;
 
@@ -36,7 +37,7 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         // Pagination koruması
         if (page < 1) page = 1;
@@ -86,7 +87,7 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         var product = await _context.ProductPendings
             .Include(p => p.Brand)
@@ -94,7 +95,7 @@ public class SellerProductController : ControllerBase
             .FirstOrDefaultAsync(p => p.ProductPendingId == id && p.SellerId == user.Id);
 
         if (product == null)
-            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+            throw new NotFoundException($"ID '{id}' ile ürün önerisi bulunamadı.");
 
         return Ok(ToSellerResponseDto(product));
     }
@@ -108,21 +109,21 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         // Slug benzersizlik kontrolü (hem Product hem ProductPending'de)
         bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
         bool slugExistsInPending = await _context.ProductPendings.AnyAsync(p => p.Slug == dto.Slug);
         
         if (slugExistsInProducts || slugExistsInPending)
-            return BadRequest(new { message = "Bu slug zaten kullanılıyor. Lütfen benzersiz bir slug seçin." });
+            throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor. Lütfen benzersiz bir slug seçin.");
 
         // Brand kontrolü (opsiyonel)
         if (dto.BrandId.HasValue)
         {
             var brandExists = await _context.Brands.AnyAsync(b => b.BrandId == dto.BrandId);
             if (!brandExists)
-                return BadRequest(new { message = "Belirtilen marka bulunamadı." });
+                throw new NotFoundException($"ID '{dto.BrandId}' ile marka bulunamadı.");
         }
 
         // Category kontrolü (opsiyonel)
@@ -130,7 +131,7 @@ public class SellerProductController : ControllerBase
         {
             var categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
             if (!categoryExists)
-                return BadRequest(new { message = "Belirtilen kategori bulunamadı." });
+                throw new NotFoundException($"ID '{dto.CategoryId}' ile kategori bulunamadı.");
         }
 
         var pending = new ProductPending
@@ -178,17 +179,17 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         var pending = await _context.ProductPendings
             .FirstOrDefaultAsync(p => p.ProductPendingId == id && p.SellerId == user.Id);
 
         if (pending == null)
-            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+            throw new NotFoundException($"ID '{id}' ile ürün önerisi bulunamadı.");
 
         // Sadece Waiting veya NeedsUpdate durumunda güncellenebilir
         if (pending.Status != PendingStatus.Waiting && pending.Status != PendingStatus.NeedsUpdate)
-            return BadRequest(new { message = "Bu ürün önerisi artık güncellenemez." });
+            throw new BadRequestException("Bu ürün önerisi artık güncellenemez.");
 
         // Slug benzersizlik kontrolü (kendisi hariç)
         bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
@@ -196,14 +197,14 @@ public class SellerProductController : ControllerBase
             .AnyAsync(p => p.Slug == dto.Slug && p.ProductPendingId != id);
 
         if (slugExistsInProducts || slugExistsInPending)
-            return BadRequest(new { message = "Bu slug zaten kullanılıyor." });
+            throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor.");
 
         // Brand kontrolü
         if (dto.BrandId.HasValue)
         {
             var brandExists = await _context.Brands.AnyAsync(b => b.BrandId == dto.BrandId);
             if (!brandExists)
-                return BadRequest(new { message = "Belirtilen marka bulunamadı." });
+                throw new NotFoundException($"ID '{dto.BrandId}' ile marka bulunamadı.");
         }
 
         // Category kontrolü
@@ -211,7 +212,7 @@ public class SellerProductController : ControllerBase
         {
             var categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
             if (!categoryExists)
-                return BadRequest(new { message = "Belirtilen kategori bulunamadı." });
+                throw new NotFoundException($"ID '{dto.CategoryId}' ile kategori bulunamadı.");
         }
 
         // Güncelle
@@ -251,17 +252,17 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         var pending = await _context.ProductPendings
             .FirstOrDefaultAsync(p => p.ProductPendingId == id && p.SellerId == user.Id);
 
         if (pending == null)
-            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+            throw new NotFoundException($"ID '{id}' ile ürün önerisi bulunamadı.");
 
         // Sadece Waiting veya NeedsUpdate durumunda silinebilir
         if (pending.Status != PendingStatus.Waiting && pending.Status != PendingStatus.NeedsUpdate)
-            return BadRequest(new { message = "Bu ürün önerisi artık silinemez." });
+            throw new BadRequestException("Bu ürün önerisi artık silinemez.");
 
         _context.ProductPendings.Remove(pending);
         await _context.SaveChangesAsync();
@@ -285,7 +286,7 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         // Pagination koruması
         if (page < 1) page = 1;
@@ -349,15 +350,15 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         // Ürün var mı ve aktif mi?
         var product = await _context.Products.FindAsync(dto.ProductId);
         if (product == null)
-            return NotFound(new { message = "Ürün bulunamadı." });
+            throw new NotFoundException($"ID '{dto.ProductId}' ile ürün bulunamadı.");
 
         if (!product.IsActive)
-            return BadRequest(new { message = "Bu ürün şu an aktif değil." });
+            throw new BadRequestException("Bu ürün şu an aktif değil.");
 
         // Kullanıcının rollerini al
         var userRoles = await _userManager.GetRolesAsync(user);
@@ -366,7 +367,7 @@ public class SellerProductController : ControllerBase
         // Admin istisna: test/yönetim amaçlı herhangi bir ürünü satışa sunabilir
         if (!isAdmin && product.CreatedBySellerId != null && product.CreatedBySellerId != user.Id)
         {
-            return BadRequest(new { message = "Bu ürün başka bir satıcıya ait. Sadece kendi ürünlerinizi veya genel katalogdaki ürünleri satabilirsiniz." });
+            throw new ForbiddenException("Ürün başka bir satıcıya ait. Sadece kendi ürünlerinizi veya genel katalogdaki ürünleri satabilirsiniz.");
         }
 
         // Aynı ürünü zaten satıyor mu?
@@ -374,7 +375,7 @@ public class SellerProductController : ControllerBase
             .AnyAsync(sp => sp.SellerId == user.Id && sp.ProductId == dto.ProductId);
 
         if (existingListing)
-            return BadRequest(new { message = "Bu ürünü zaten satıyorsunuz." });
+            throw new ConflictException($"ID '{dto.ProductId}' ürününü zaten satıyorsunuz.");
 
         var listing = new SellerProduct
         {
@@ -421,13 +422,13 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         var listing = await _context.SellerProducts
             .FirstOrDefaultAsync(sp => sp.SellerProductId == id && sp.SellerId == user.Id);
 
         if (listing == null)
-            return NotFound(new { message = "Satış bulunamadı." });
+            throw new NotFoundException($"ID '{id}' ile satış bulunamadı.");
 
         listing.OriginalPrice = dto.OriginalPrice;
         listing.DiscountPercentage = dto.DiscountPercentage;
@@ -451,13 +452,13 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         var listing = await _context.SellerProducts
             .FirstOrDefaultAsync(sp => sp.SellerProductId == id && sp.SellerId == user.Id);
 
         if (listing == null)
-            return NotFound(new { message = "Satış bulunamadı." });
+            throw new NotFoundException($"ID '{id}' ile satış bulunamadı.");
 
         _context.SellerProducts.Remove(listing);
         await _context.SaveChangesAsync();
@@ -478,7 +479,7 @@ public class SellerProductController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
         // Pending ürün sayıları
         var pendingCounts = await _context.ProductPendings

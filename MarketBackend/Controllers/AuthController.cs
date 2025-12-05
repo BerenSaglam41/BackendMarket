@@ -5,6 +5,7 @@ using MarketBackend.Models;
 using MarketBackend.Models.DTOs;
 using MarketBackend.Services;
 using Microsoft.AspNetCore.Authorization;
+using MarketBackend.Models.Common;
 
 namespace MarketBackend.Controllers;
 
@@ -27,7 +28,7 @@ public class AuthController : ControllerBase
         // 1) Email zaten var mı?
         var existingUser = await _userManager.FindByEmailAsync(dto.Email);
         if (existingUser != null)
-            return BadRequest(new { message = "Bu email zaten kayıtlı." });
+            throw new ConflictException($"'{dto.Email}' email adresi zaten kayıtlı.");
 
         // 2) Kullanıcı oluştur
         var user = new AppUser
@@ -43,7 +44,7 @@ public class AuthController : ControllerBase
         var result = await _userManager.CreateAsync(user, dto.Password);
 
         if (!result.Succeeded)
-            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+            throw new BadRequestException("Kullanıcı oluşturulamadı.", result.Errors.Select(e => e.Description).ToList());
 
         // 3) Rol ata
         await _userManager.AddToRoleAsync(user, "Customer");
@@ -67,17 +68,17 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByEmailAsync(dto.Email);
 
         if (user == null)
-            return Unauthorized(new { message = "Email veya şifre hatalı." });
+            throw new UnauthorizedException("Email veya şifre hatalı.");
 
         // 2) Kullanıcı aktif mi?
         if (!user.IsActive)
-            return Unauthorized(new { message = "Hesabınız pasif durumda." });
+            throw new UnauthorizedException("Hesabınız pasif durumda.");
 
         // 3) Şifre doğru mu?
         var passwordCorrect = await _userManager.CheckPasswordAsync(user, dto.Password);
 
         if (!passwordCorrect)
-            return Unauthorized(new { message = "Email veya şifre hatalı." });
+            throw new UnauthorizedException("Email veya şifre hatalı.");
 
         // LastLogin güncelle
         user.LastLogin = DateTime.UtcNow;
@@ -112,18 +113,18 @@ public class AuthController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+            throw new UnauthorizedException("Geçerli kullanıcı bulunamadı.");
 
         // Zaten Seller mı?
         var roles = await _userManager.GetRolesAsync(user);
         if (roles.Contains("Seller"))
-            return BadRequest(new { message = "Zaten bir satıcı hesabınız var." });
+            throw new BadRequestException("Zaten bir satıcı hesabınız var.");
 
         // Store slug benzersiz mi?
         var existingStore = await _userManager.Users
             .AnyAsync(u => u.StoreSlug == dto.StoreSlug && u.Id != user.Id);
         if (existingStore)
-            return BadRequest(new { message = "Bu mağaza URL'si zaten kullanılıyor." });
+            throw new ConflictException($"'{dto.StoreSlug}' mağaza URL'si zaten kullanılıyor.");
 
         // Mağaza bilgilerini güncelle
         user.StoreName = dto.StoreName;
@@ -135,7 +136,7 @@ public class AuthController : ControllerBase
 
         var updateResult = await _userManager.UpdateAsync(user);
         if (!updateResult.Succeeded)
-            return BadRequest(new { errors = updateResult.Errors.Select(e => e.Description) });
+            throw new BadRequestException("Kullanıcı bilgileri güncellenemedi.", updateResult.Errors.Select(e => e.Description).ToList());
 
         // Seller rolü ekle (Customer rolü kalır - hem alıcı hem satıcı olabilir)
         await _userManager.AddToRoleAsync(user, "Seller");
@@ -163,7 +164,7 @@ public class AuthController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
-            return Unauthorized();
+            throw new UnauthorizedException("Geçerli kullanıcı bulunamadı.");
 
         var roles = await _userManager.GetRolesAsync(user);
         var response = new MeResponseDto

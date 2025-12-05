@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Models.DTOs;
+using MarketBackend.Models.Common;
 
 namespace MarketBackend.Controllers;
 
@@ -53,7 +54,7 @@ public class CategoryController : ControllerBase
             .FirstOrDefaultAsync(c => c.Slug == slug && c.IsActive);
         
         if(category == null)
-            return NotFound(new { message = "Kategori bulunamadı." });
+            throw new NotFoundException($"'{slug}' slug'ına sahip kategori bulunamadı.");
         
         var dto = new CategoryResponseDto
         {
@@ -80,7 +81,7 @@ public class CategoryController : ControllerBase
         var exists = await _context.Categories.AnyAsync(c => c.Slug == dto.Slug);
 
         if(exists)
-            return BadRequest(new { message = "Bu slug zaten var "});
+            throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor.");
         
         var category = new Category
         {
@@ -122,13 +123,13 @@ public class CategoryController : ControllerBase
     {
         var category = await _context.Categories.FindAsync(id);
         if(category == null)
-            return NotFound(new { message = "Kategori bulunamadı." });  
+            throw new NotFoundException($"ID: {id} olan kategori bulunamadı.");  
         
         // Slug Cakismasi
         var slugExists = await _context.Categories
             .AnyAsync(c => c.Slug == dto.Slug && c.CategoryId != id);
         if(slugExists)
-            return BadRequest(new { message = "Bu slug zaten kullanılıyor." });
+            throw new ConflictException($"'{dto.Slug}' slug'ı başka bir kategori tarafından kullanılıyor.");
         
         category.Name = dto.Name;
         category.Slug = dto.Slug;
@@ -153,7 +154,7 @@ public class CategoryController : ControllerBase
     {
         var category = await _context.Categories.FindAsync(id);
         if(category == null)
-            return NotFound( new{message = "Kategori bulunamadı."});
+            throw new NotFoundException($"ID: {id} olan kategori bulunamadı.");
         _context.Categories.Remove(category);
         await _context.SaveChangesAsync();
         return NoContent();

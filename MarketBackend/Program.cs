@@ -6,6 +6,7 @@ using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Extensions;
 using MarketBackend.Services;
+using MarketBackend.Middleware;
 
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -63,12 +64,10 @@ using (var scope = app.Services.CreateScope())
     await RoleSeeder.SeedRoleAsync(roleManager);
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
+// ⭐ Global Exception Handling Middleware (EN BAŞTA!)
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// HTTPS redirect'i development'ta kaldır (HTTP kullanıyorsan)
+// HTTPS redirect
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();

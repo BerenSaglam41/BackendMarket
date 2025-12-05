@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Models.DTOs;
+using MarketBackend.Models.Common;
 
 namespace MarketBackend.Controllers;
 
@@ -61,7 +62,7 @@ public class BrandController : ControllerBase
             .FirstOrDefaultAsync(b => b.Slug == slug && b.IsActive);
 
         if(brand == null)
-            return NotFound(new { message = "Marka bulunamadı." });
+            throw new NotFoundException($"'{slug}' slug'ına sahip marka bulunamadı.");
         
         return Ok(new BrandResponseDto
         {
@@ -92,7 +93,7 @@ public class BrandController : ControllerBase
         bool slugExists = await _context.Brands
             .AnyAsync(b => b.Slug == dto.Slug);
         if (slugExists)
-            return BadRequest(new { message = "Bu slug zaten kullanılıyor." });
+            throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor.");
         
         var brand = new Brand
         {
@@ -148,12 +149,12 @@ public class BrandController : ControllerBase
     {
         var brand = await _context.Brands.FindAsync(id);
         if (brand == null)
-            return NotFound(new { message = "Marka bulunamadı." });
+            throw new NotFoundException($"ID: {id} olan marka bulunamadı.");
         // Slug Kontrol
         bool slugExists = await _context.Brands
             .AnyAsync(b => b.Slug == dto.Slug && b.BrandId != id);
         if (slugExists)
-            return BadRequest(new { message = "Bu slug zaten kullanılıyor." });
+            throw new ConflictException($"'{dto.Slug}' slug'ı başka bir marka tarafından kullanılıyor.");
 
         brand.Name = dto.Name;
         brand.Slug = dto.Slug;
@@ -181,7 +182,7 @@ public class BrandController : ControllerBase
     {
         var brand = await _context.Brands.FindAsync(id);
         if (brand == null)
-            return NotFound(new { message = "Marka bulunamadı." });
+            throw new NotFoundException($"ID: {id} olan marka bulunamadı.");
 
         _context.Brands.Remove(brand);
         await _context.SaveChangesAsync();

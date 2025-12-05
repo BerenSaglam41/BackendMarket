@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Models.DTOs;
+using MarketBackend.Models.Common;
 using System.Text.Json;
 
 namespace MarketBackend.Controllers;
@@ -97,7 +98,7 @@ public class AdminPendingController : ControllerBase
             .FirstOrDefaultAsync(p => p.ProductPendingId == id);
 
         if (product == null)
-            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+            throw new NotFoundException($"ID: {id} olan ürün önerisi bulunamadı.");
 
         return Ok(ToAdminResponseDto(product));
     }
@@ -111,17 +112,17 @@ public class AdminPendingController : ControllerBase
     {
         var admin = await _userManager.GetUserAsync(User);
         if (admin == null)
-            return Unauthorized(new { message = "Admin bulunamadı." });
+            throw new UnauthorizedException("Admin bulunamadı.");
 
         var pending = await _context.ProductPendings
             .Include(p => p.Seller)
             .FirstOrDefaultAsync(p => p.ProductPendingId == id);
 
         if (pending == null)
-            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+            throw new NotFoundException($"ID: {id} olan ürün önerisi bulunamadı.");
 
         if (pending.Status != PendingStatus.Waiting)
-            return BadRequest(new { message = "Bu ürün önerisi zaten işlenmiş." });
+            throw new BadRequestException("Bu ürün önerisi zaten işlenmiş.");
 
         // Admin düzeltme yapmış olabilir
         var productName = dto?.Name ?? pending.Name;
@@ -137,11 +138,9 @@ public class AdminPendingController : ControllerBase
             .AnyAsync(p => p.Slug == productSlug && p.ProductPendingId != pending.ProductPendingId);
 
         if (slugExistsInProducts || slugExistsInPending)
-            return BadRequest(new { message = "Bu slug zaten kullanılıyor." });
+            throw new ConflictException($"'{productSlug}' slug'ı zaten kullanılıyor.");
 
         using var transaction = await _context.Database.BeginTransactionAsync();
-        try
-        {
             // 1. Yeni Product oluştur (Seller'ın ürünü olarak işaretle)
             // Product artık sadece tanım içeriyor, fiyat/stok SellerProduct'ta
             var product = new Product
@@ -196,12 +195,6 @@ public class AdminPendingController : ControllerBase
                 ProductId = product.ProductId,
                 SellerProductId = sellerProduct.SellerProductId
             });
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            return StatusCode(500, new { message = "Ürün onaylanırken bir hata oluştu.", error = ex.Message });
-        }
     }
 
     /// <summary>
@@ -213,16 +206,16 @@ public class AdminPendingController : ControllerBase
     {
         var admin = await _userManager.GetUserAsync(User);
         if (admin == null)
-            return Unauthorized(new { message = "Admin bulunamadı." });
+            throw new UnauthorizedException("Admin bulunamadı.");
 
         var pending = await _context.ProductPendings
             .FirstOrDefaultAsync(p => p.ProductPendingId == id);
 
         if (pending == null)
-            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+            throw new NotFoundException($"ID '{id}' ile ürün önerisi bulunamadı.");
 
         if (pending.Status != PendingStatus.Waiting)
-            return BadRequest(new { message = "Bu ürün önerisi zaten işlenmiş." });
+            throw new BadRequestException("Bu ürün önerisi zaten işlenmiş.");
 
         pending.Status = PendingStatus.Rejected;
         pending.AdminNote = dto.AdminNote;
@@ -243,16 +236,16 @@ public class AdminPendingController : ControllerBase
     {
         var admin = await _userManager.GetUserAsync(User);
         if (admin == null)
-            return Unauthorized(new { message = "Admin bulunamadı." });
+            throw new UnauthorizedException("Admin bulunamadı.");
 
         var pending = await _context.ProductPendings
             .FirstOrDefaultAsync(p => p.ProductPendingId == id);
 
         if (pending == null)
-            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+            throw new NotFoundException($"ID '{id}' ile ürün önerisi bulunamadı.");
 
         if (pending.Status != PendingStatus.Waiting)
-            return BadRequest(new { message = "Bu ürün önerisi zaten işlenmiş." });
+            throw new BadRequestException("Bu ürün önerisi zaten işlenmiş.");
 
         pending.Status = PendingStatus.NeedsUpdate;
         pending.AdminNote = dto.AdminNote;

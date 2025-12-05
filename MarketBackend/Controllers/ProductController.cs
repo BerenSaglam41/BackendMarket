@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Models.DTOs;
+using MarketBackend.Models.Common;
 using System.Text.Json;
 
 namespace MarketBackend.Controllers;
@@ -95,7 +96,7 @@ public class ProductController : ControllerBase
             .FirstOrDefaultAsync(p => p.Slug == slug && p.IsActive);
         
         if (product == null)
-            return NotFound(new { message = "Ürün bulunamadı." });
+            throw new NotFoundException($"'{slug}' slug'ına sahip ürün bulunamadı.");
 
         return Ok(ToDetailDto(product));
     }
@@ -111,14 +112,14 @@ public class ProductController : ControllerBase
         // Slug benzersiz mi
         bool slugExists = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
         if (slugExists)
-            return BadRequest(new { message = "Bu slug zaten kullanılıyor. Lütfen benzersiz bir slug seçin." });
+            throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor.");
         
         // Marka Var mi (opsiyonel)
         if (dto.BrandId.HasValue)
         {
             var brand = await _context.Brands.FindAsync(dto.BrandId.Value);
             if (brand == null)
-                return BadRequest(new { message = "Belirtilen marka bulunamadı." });
+                throw new NotFoundException($"ID: {dto.BrandId} olan marka bulunamadı.");
         }
 
         // Kategori var mı (opsiyonel)
@@ -126,7 +127,7 @@ public class ProductController : ControllerBase
         {
             var categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
             if (!categoryExists)
-                return BadRequest(new { message = "Belirtilen kategori bulunamadı." });
+                throw new NotFoundException($"ID: {dto.CategoryId} olan kategori bulunamadı.");
         }
         
         var product = new Product
@@ -165,21 +166,21 @@ public class ProductController : ControllerBase
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null)
-            return NotFound(new { message = "Ürün bulunamadı." });
+            throw new NotFoundException($"ID: {id} olan ürün bulunamadı.");
 
         // Slug benzersiz mi?
         bool slugExists = await _context.Products
             .AnyAsync(p => p.Slug == dto.Slug && p.ProductId != id);
 
         if (slugExists)
-            return BadRequest(new { message = "Bu slug başka bir ürün tarafından kullanılıyor." });
+            throw new ConflictException($"'{dto.Slug}' slug'ı başka bir ürün tarafından kullanılıyor.");
 
         // Marka var mı?
         if (dto.BrandId.HasValue)
         {
             bool brandExists = await _context.Brands.AnyAsync(b => b.BrandId == dto.BrandId);
             if (!brandExists)
-                return BadRequest(new { message = "Belirtilen marka bulunamadı." });
+                throw new NotFoundException($"ID: {dto.BrandId} olan marka bulunamadı.");
         }
         
         // Kategori var mı?
@@ -187,7 +188,7 @@ public class ProductController : ControllerBase
         {
             bool categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
             if (!categoryExists)
-                return BadRequest(new { message = "Geçersiz kategori ID." });
+                throw new NotFoundException($"ID: {dto.CategoryId} olan kategori bulunamadı.");
         }
         
         product.Name = dto.Name;
@@ -216,7 +217,7 @@ public class ProductController : ControllerBase
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null)
-            return NotFound(new { message = "Ürün bulunamadı." });
+            throw new NotFoundException($"ID: {id} olan ürün bulunamadı.");
 
         // Aktif satış kontrolü - Bu ürünü satan seller var mı?
         var activeListings = await _context.SellerProducts
@@ -224,10 +225,10 @@ public class ProductController : ControllerBase
             .CountAsync();
 
         if (activeListings > 0)
-            return BadRequest(new { 
-                message = $"Bu ürünü aktif olarak satan {activeListings} satıcı var. Önce satışları kapatın veya ürünü pasife alın.",
-                activeListingsCount = activeListings
-            });
+            throw new BadRequestException(
+                $"Bu ürünü aktif olarak satan {activeListings} satıcı var. Önce satışları kapatın veya ürünü pasife alın.",
+                new List<string> { $"Aktif satış sayısı: {activeListings}" }
+            );
 
         _context.Products.Remove(product);
         await _context.SaveChangesAsync();
