@@ -86,34 +86,6 @@ public class SellerProductUpdateValidator : AbstractValidator<SellerProductUpdat
 }
 
 /// <summary>
-/// Admin ürünü reddederken validasyon
-/// </summary>
-public class AdminRejectValidator : AbstractValidator<AdminRejectDto>
-{
-    public AdminRejectValidator()
-    {
-        RuleFor(x => x.AdminNote)
-            .NotEmpty().WithMessage("Red sebebi zorunludur.")
-            .MinimumLength(10).WithMessage("Red sebebi en az 10 karakter olmalıdır.")
-            .MaximumLength(1000).WithMessage("Red sebebi en fazla 1000 karakter olabilir.");
-    }
-}
-
-/// <summary>
-/// Admin güncelleme talep ederken validasyon
-/// </summary>
-public class AdminRequestUpdateValidator : AbstractValidator<AdminRequestUpdateDto>
-{
-    public AdminRequestUpdateValidator()
-    {
-        RuleFor(x => x.AdminNote)
-            .NotEmpty().WithMessage("Güncelleme talebi sebebi zorunludur.")
-            .MinimumLength(10).WithMessage("Açıklama en az 10 karakter olmalıdır.")
-            .MaximumLength(1000).WithMessage("Açıklama en fazla 1000 karakter olabilir.");
-    }
-}
-
-/// <summary>
 /// Seller'ın mevcut ürünü satışa sunması validasyonu
 /// </summary>
 public class SellerListingCreateValidator : AbstractValidator<SellerListingCreateDto>
@@ -123,17 +95,27 @@ public class SellerListingCreateValidator : AbstractValidator<SellerListingCreat
         RuleFor(x => x.ProductId)
             .GreaterThan(0).WithMessage("Geçerli bir ürün ID'si belirtilmelidir.");
 
-        RuleFor(x => x.Price)
-            .GreaterThan(0).WithMessage("Fiyat 0'dan büyük olmalıdır.");
+        RuleFor(x => x.OriginalPrice)
+            .GreaterThan(0).WithMessage("Fiyat 0'dan büyük olmalıdır.")
+            .LessThanOrEqualTo(10_000_000).WithMessage("Fiyat 10.000.000'den fazla olamaz.");
+
+        RuleFor(x => x.DiscountPercentage)
+            .InclusiveBetween(0, 99).WithMessage("İndirim oranı 0-99 arasında olmalıdır.");
 
         RuleFor(x => x.Stock)
-            .GreaterThanOrEqualTo(0).WithMessage("Stok negatif olamaz.");
+            .GreaterThanOrEqualTo(0).WithMessage("Stok negatif olamaz.")
+            .LessThanOrEqualTo(100_000).WithMessage("Stok 100.000'den fazla olamaz.");
 
         RuleFor(x => x.ShippingTimeInDays)
             .InclusiveBetween(1, 30).WithMessage("Kargo süresi 1-30 gün arasında olmalıdır.");
 
         RuleFor(x => x.ShippingCost)
-            .GreaterThanOrEqualTo(0).WithMessage("Kargo ücreti negatif olamaz.");
+            .GreaterThanOrEqualTo(0).WithMessage("Kargo ücreti negatif olamaz.")
+            .LessThanOrEqualTo(1000).WithMessage("Kargo ücreti 1000'den fazla olamaz.");
+
+        RuleFor(x => x.SellerNote)
+            .MaximumLength(500).WithMessage("Satıcı notu en fazla 500 karakter olabilir.")
+            .When(x => !string.IsNullOrEmpty(x.SellerNote));
     }
 }
 
@@ -144,16 +126,26 @@ public class SellerListingUpdateValidator : AbstractValidator<SellerListingUpdat
 {
     public SellerListingUpdateValidator()
     {
-        RuleFor(x => x.Price)
-            .GreaterThan(0).WithMessage("Fiyat 0'dan büyük olmalıdır.");
+        RuleFor(x => x.OriginalPrice)
+            .GreaterThan(0).WithMessage("Fiyat 0'dan büyük olmalıdır.")
+            .LessThanOrEqualTo(10_000_000).WithMessage("Fiyat 10.000.000'den fazla olamaz.");
+
+        RuleFor(x => x.DiscountPercentage)
+            .InclusiveBetween(0, 99).WithMessage("İndirim oranı 0-99 arasında olmalıdır.");
 
         RuleFor(x => x.Stock)
-            .GreaterThanOrEqualTo(0).WithMessage("Stok negatif olamaz.");
+            .GreaterThanOrEqualTo(0).WithMessage("Stok negatif olamaz.")
+            .LessThanOrEqualTo(100_000).WithMessage("Stok 100.000'den fazla olamaz.");
 
         RuleFor(x => x.ShippingTimeInDays)
             .InclusiveBetween(1, 30).WithMessage("Kargo süresi 1-30 gün arasında olmalıdır.");
 
         RuleFor(x => x.ShippingCost)
-            .GreaterThanOrEqualTo(0).WithMessage("Kargo ücreti negatif olamaz.");
+            .GreaterThanOrEqualTo(0).WithMessage("Kargo ücreti negatif olamaz.")
+            .LessThanOrEqualTo(1000).WithMessage("Kargo ücreti 1000'den fazla olamaz.");
+
+        RuleFor(x => x.SellerNote)
+            .MaximumLength(500).WithMessage("Satıcı notu en fazla 500 karakter olabilir.")
+            .When(x => !string.IsNullOrEmpty(x.SellerNote));
     }
 }

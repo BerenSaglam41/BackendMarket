@@ -29,11 +29,19 @@ public class SellerProductController : ControllerBase
 
 
     [HttpGet("products")]
-    public async Task<IActionResult> GetMyPendingProducts([FromQuery] string? status = null)
+    public async Task<IActionResult> GetMyPendingProducts(
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
             return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        // Pagination koruması
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
 
         var query = _context.ProductPendings
             .Include(p => p.Brand)
@@ -46,12 +54,27 @@ public class SellerProductController : ControllerBase
             query = query.Where(p => p.Status == parsedStatus);
         }
 
+        var totalCount = await query.CountAsync();
+
         var products = await query
             .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         var response = products.Select(p => ToSellerResponseDto(p));
-        return Ok(response);
+        
+        return Ok(new
+        {
+            Data = response,
+            Pagination = new
+            {
+                CurrentPage = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            }
+        });
     }
 
     /// <summary>
@@ -255,11 +278,19 @@ public class SellerProductController : ControllerBase
     /// GET /api/seller/listings
     /// </summary>
     [HttpGet("listings")]
-    public async Task<IActionResult> GetMyListings([FromQuery] bool? isActive = null)
+    public async Task<IActionResult> GetMyListings(
+        [FromQuery] bool? isActive = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
             return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        // Pagination koruması
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
 
         var query = _context.SellerProducts
             .Include(sp => sp.Product)
@@ -270,8 +301,12 @@ public class SellerProductController : ControllerBase
             query = query.Where(sp => sp.IsActive == isActive.Value);
         }
 
+        var totalCount = await query.CountAsync();
+
         var listings = await query
             .OrderByDescending(sp => sp.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         var response = listings.Select(sp => new SellerListingResponseDto
@@ -281,7 +316,9 @@ public class SellerProductController : ControllerBase
             ProductName = sp.Product.Name,
             ProductSlug = sp.Product.Slug,
             ProductImageUrl = sp.Product.ImageUrl,
-            Price = sp.Price,
+            OriginalPrice = sp.OriginalPrice,
+            DiscountPercentage = sp.DiscountPercentage,
+            UnitPrice = sp.UnitPrice,
             Stock = sp.Stock,
             ShippingTimeInDays = sp.ShippingTimeInDays,
             ShippingCost = sp.ShippingCost,
@@ -290,7 +327,17 @@ public class SellerProductController : ControllerBase
             CreatedAt = sp.CreatedAt
         });
 
-        return Ok(response);
+        return Ok(new
+        {
+            Data = response,
+            Pagination = new
+            {
+                CurrentPage = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            }
+        });
     }
 
     /// <summary>
@@ -304,20 +351,18 @@ public class SellerProductController : ControllerBase
         if (user == null)
             return Unauthorized(new { message = "Kullanıcı bulunamadı." });
 
-        // Ürün var mı ve satışa açık mı?
+        // Ürün var mı ve aktif mi?
         var product = await _context.Products.FindAsync(dto.ProductId);
         if (product == null)
             return NotFound(new { message = "Ürün bulunamadı." });
 
-        if (!product.IsAvailable)
-            return BadRequest(new { message = "Bu ürün şu an satışa kapalı." });
+        if (!product.IsActive)
+            return BadRequest(new { message = "Bu ürün şu an aktif değil." });
 
         // Kullanıcının rollerini al
         var userRoles = await _userManager.GetRolesAsync(user);
         var isAdmin = userRoles.Contains("Admin");
 
-        // ⭐ Ürün sahiplik kontrolü (Admin bypass edebilir)
-        // Eğer ürün bir seller tarafından oluşturulduysa, sadece o seller satabilir
         // Admin istisna: test/yönetim amaçlı herhangi bir ürünü satışa sunabilir
         if (!isAdmin && product.CreatedBySellerId != null && product.CreatedBySellerId != user.Id)
         {
@@ -335,7 +380,8 @@ public class SellerProductController : ControllerBase
         {
             SellerId = user.Id,
             ProductId = dto.ProductId,
-            Price = dto.Price,
+            OriginalPrice = dto.OriginalPrice,
+            DiscountPercentage = dto.DiscountPercentage,
             Stock = dto.Stock,
             ShippingTimeInDays = dto.ShippingTimeInDays,
             ShippingCost = dto.ShippingCost,
@@ -354,7 +400,9 @@ public class SellerProductController : ControllerBase
             ProductName = product.Name,
             ProductSlug = product.Slug,
             ProductImageUrl = product.ImageUrl,
-            Price = listing.Price,
+            OriginalPrice = listing.OriginalPrice,
+            DiscountPercentage = listing.DiscountPercentage,
+            UnitPrice = listing.UnitPrice,
             Stock = listing.Stock,
             ShippingTimeInDays = listing.ShippingTimeInDays,
             ShippingCost = listing.ShippingCost,
@@ -381,7 +429,8 @@ public class SellerProductController : ControllerBase
         if (listing == null)
             return NotFound(new { message = "Satış bulunamadı." });
 
-        listing.Price = dto.Price;
+        listing.OriginalPrice = dto.OriginalPrice;
+        listing.DiscountPercentage = dto.DiscountPercentage;
         listing.Stock = dto.Stock;
         listing.ShippingTimeInDays = dto.ShippingTimeInDays;
         listing.ShippingCost = dto.ShippingCost;

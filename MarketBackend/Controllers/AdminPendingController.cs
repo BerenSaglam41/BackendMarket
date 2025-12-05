@@ -37,6 +37,11 @@ public class AdminPendingController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
+        // Pagination koruması - negatif veya sıfır değerlerde default'a dön
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100; // Max limit
+        
         var query = _context.ProductPendings
             .Include(p => p.Seller)
             .Include(p => p.Brand)
@@ -138,6 +143,7 @@ public class AdminPendingController : ControllerBase
         try
         {
             // 1. Yeni Product oluştur (Seller'ın ürünü olarak işaretle)
+            // Product artık sadece tanım içeriyor, fiyat/stok SellerProduct'ta
             var product = new Product
             {
                 Name = productName,
@@ -146,12 +152,10 @@ public class AdminPendingController : ControllerBase
                 BrandId = brandId,
                 CategoryId = categoryId,
                 ImageUrl = imageUrl,
-                OriginalPrice = pending.ProposedPrice,
-                DiscountPercentage = 0,
-                StockQuantity = pending.ProposedStock,
-                IsAvailable = true,
+                ImageGalleryJson = pending.ImageGalleryJson,
                 MetaTitle = dto?.MetaTitle ?? productName,
                 MetaDescription = dto?.MetaDescription ?? productDescription,
+                IsActive = true,
                 CreatedBySellerId = pending.SellerId,  
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -160,12 +164,13 @@ public class AdminPendingController : ControllerBase
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
-            // 2. Seller için SellerProduct oluştur
+            // 2. Seller için SellerProduct oluştur (fiyat/stok burada)
             var sellerProduct = new SellerProduct
             {
                 SellerId = pending.SellerId,
                 ProductId = product.ProductId,
-                Price = pending.ProposedPrice,
+                OriginalPrice = pending.ProposedPrice,
+                DiscountPercentage = 0,
                 Stock = pending.ProposedStock,
                 ShippingTimeInDays = pending.ShippingTimeInDays,
                 ShippingCost = 0,

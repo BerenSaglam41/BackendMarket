@@ -7,7 +7,7 @@ public class Product
     // Temel bilgiler
     public required string Name { get; set; }                   // Zorunlu
     public required string Slug { get; set; }                   // URL için zorunlu
-    public string? Description { get; set; }            // Ürün açıklaması
+    public string? Description { get; set; }                    // Ürün açıklaması
 
     // Marka ilişkisi
     public int? BrandId { get; set; }
@@ -17,22 +17,9 @@ public class Product
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
-    // Fiyatlar
-    public decimal OriginalPrice { get; set; }         // İndirimsiz fiyat
-    public decimal DiscountPercentage { get; set; }    // % İndirim oranı (0–100)
-    
-    // Otomatik hesaplanan fiyat
-    public decimal UnitPrice 
-    {
-        get => OriginalPrice - (OriginalPrice * (DiscountPercentage / 100m));
-    }
-
-    // Stok
-    public int StockQuantity { get; set; }
-    public bool IsAvailable { get; set; }              // Ürün satılabilir mi?
-
     // Görseller
     public string? ImageUrl { get; set; }
+    public string? ImageGalleryJson { get; set; }               // Çoklu resim JSON
 
     // SEO
     public string? MetaTitle { get; set; }
@@ -41,6 +28,9 @@ public class Product
     // Ürünü kim oluşturdu?
     public string? CreatedBySellerId { get; set; }
     public AppUser? CreatedBySeller { get; set; }
+    
+    // Ürün aktif mi? (Admin tarafından kapatılabilir)
+    public bool IsActive { get; set; } = true;
     
     // Seller ilişkileri
     public ICollection<SellerProduct> SellerProducts { get; set; } = new List<SellerProduct>();

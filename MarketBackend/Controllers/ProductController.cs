@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Models.DTOs;
+using System.Text.Json;
 
 namespace MarketBackend.Controllers;
 
@@ -20,23 +21,67 @@ public class ProductController : ControllerBase
         _userManager = userManager;
     }
     
-    // Tum Aktif Urunler
+    /// <summary>
+    /// Tüm aktif ürünleri listele (en düşük fiyatla birlikte)
+    /// GET /api/Product
+    /// </summary>
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int? brandId = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
-        var products = await _context.Products
+        // Pagination koruması - negatif veya sıfır değerlerde default'a dön
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100; // Max limit
+        
+        var query = _context.Products
             .Include(p => p.Brand)
             .Include(p => p.Category)
             .Include(p => p.CreatedBySeller)
-            .Where(p => p.IsAvailable)
+            .Include(p => p.SellerProducts.Where(sp => sp.IsActive))
+            .Where(p => p.IsActive)
+            .AsQueryable();
+        
+        // Filtreler
+        if (brandId.HasValue)
+            query = query.Where(p => p.BrandId == brandId);
+        
+        if (categoryId.HasValue)
+            query = query.Where(p => p.CategoryId == categoryId);
+        
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(p => p.Name.Contains(search) || p.Description!.Contains(search));
+        
+        var totalCount = await query.CountAsync();
+        
+        var products = await query
             .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
         
-        return Ok(products.Select(ToDto));   
+        return Ok(new
+        {
+            Data = products.Select(p => ToListDto(p)),
+            Pagination = new
+            {
+                CurrentPage = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            }
+        });
     }
     
-    // Slug ile urun getir
+    /// <summary>
+    /// Ürün detayı - Tüm satıcılarla birlikte
+    /// GET /api/Product/{slug}
+    /// </summary>
     [HttpGet("{slug}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetBySlug(string slug)
@@ -45,15 +90,20 @@ public class ProductController : ControllerBase
             .Include(p => p.Brand)
             .Include(p => p.Category)
             .Include(p => p.CreatedBySeller)
-            .FirstOrDefaultAsync(p => p.Slug == slug && p.IsAvailable);
+            .Include(p => p.SellerProducts.Where(sp => sp.IsActive))
+                .ThenInclude(sp => sp.Seller)
+            .FirstOrDefaultAsync(p => p.Slug == slug && p.IsActive);
         
         if (product == null)
             return NotFound(new { message = "Ürün bulunamadı." });
 
-        return Ok(ToDto(product));
+        return Ok(ToDetailDto(product));
     }
     
-    // Urun olustur - Sadece Admin
+    /// <summary>
+    /// Ürün oluştur - Sadece Admin (fiyat/stok yok, sadece tanım)
+    /// POST /api/Product
+    /// </summary>
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create(ProductCreateDto dto)
@@ -86,27 +136,29 @@ public class ProductController : ControllerBase
             Description = dto.Description,
             BrandId = dto.BrandId,
             CategoryId = dto.CategoryId,
-
-            OriginalPrice = dto.OriginalPrice,
-            DiscountPercentage = dto.DiscountPercentage,
-
-            StockQuantity = dto.StockQuantity,
-            IsAvailable = dto.IsAvailable,
-
             ImageUrl = dto.ImageUrl,
+            ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null,
             MetaTitle = dto.MetaTitle,
             MetaDescription = dto.MetaDescription,
-
+            IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
         
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetBySlug), new { slug = product.Slug }, ToDto(product));
+        
+        // Brand ve Category yükle
+        await _context.Entry(product).Reference(p => p.Brand).LoadAsync();
+        await _context.Entry(product).Reference(p => p.Category).LoadAsync();
+        
+        return CreatedAtAction(nameof(GetBySlug), new { slug = product.Slug }, ToListDto(product));
     }
     
-    // Update Product - Sadece Admin
+    /// <summary>
+    /// Ürün güncelle - Sadece Admin (fiyat/stok yok, sadece tanım)
+    /// PUT /api/Product/{id}
+    /// </summary>
     [HttpPut("{id:int}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, ProductUpdateDto dto)
@@ -143,20 +195,21 @@ public class ProductController : ControllerBase
         product.Description = dto.Description;
         product.BrandId = dto.BrandId;
         product.CategoryId = dto.CategoryId;
-        product.OriginalPrice = dto.OriginalPrice;
-        product.DiscountPercentage = dto.DiscountPercentage;
-        product.StockQuantity = dto.StockQuantity;
-        product.IsAvailable = dto.IsAvailable;
         product.ImageUrl = dto.ImageUrl;
+        product.ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null;
         product.MetaTitle = dto.MetaTitle;
         product.MetaDescription = dto.MetaDescription;
+        product.IsActive = dto.IsActive;
         product.UpdatedAt = DateTime.UtcNow;
         
         await _context.SaveChangesAsync();
         return NoContent();
     }
     
-    // Delete Product - Sadece Admin
+    /// <summary>
+    /// Ürün sil - Sadece Admin
+    /// DELETE /api/Product/{id}
+    /// </summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
@@ -182,9 +235,17 @@ public class ProductController : ControllerBase
         return NoContent();
     }
     
-    // DTO MAP
-    private ProductResponseDto ToDto(Product p)
+    // ==========================================
+    // HELPER METHODS
+    // ==========================================
+    
+    /// <summary>
+    /// Liste için DTO (satıcı detayı yok, sadece min fiyat)
+    /// </summary>
+    private ProductResponseDto ToListDto(Product p)
     {
+        var activeSellers = p.SellerProducts?.Where(sp => sp.IsActive).ToList() ?? new List<SellerProduct>();
+        
         return new ProductResponseDto
         {
             ProductId = p.ProductId,
@@ -198,22 +259,18 @@ public class ProductController : ControllerBase
             CategoryId = p.CategoryId,
             CategoryName = p.Category?.Name,
 
-            OriginalPrice = p.OriginalPrice,
-            DiscountPercentage = p.DiscountPercentage,
-            UnitPrice = p.UnitPrice,
-
-            StockQuantity = p.StockQuantity,
-            IsAvailable = p.IsAvailable,
-
             ImageUrl = p.ImageUrl,
+            ImageGallery = ParseImageGallery(p.ImageGalleryJson),
+            
             MetaTitle = p.MetaTitle,
             MetaDescription = p.MetaDescription,
+            
+            IsActive = p.IsActive,
             ReviewCount = p.ReviewCount,
 
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt,
 
-            // Store bilgisi (Seller ürünüyse dolu, Admin ürünüyse null)
             CreatedBySellerId = p.CreatedBySellerId,
             Store = p.CreatedBySeller != null ? new ProductStoreInfoDto
             {
@@ -221,7 +278,55 @@ public class ProductController : ControllerBase
                 StoreSlug = p.CreatedBySeller.StoreSlug ?? "",
                 StoreLogoUrl = p.CreatedBySeller.StoreLogoUrl,
                 IsStoreVerified = p.CreatedBySeller.IsStoreVerified
-            } : null
+            } : null,
+            
+            // Satıcı özeti
+            MinPrice = activeSellers.Any() ? activeSellers.Min(sp => sp.UnitPrice) : null,
+            SellerCount = activeSellers.Count,
+            Sellers = null  // Liste'de satıcı detayı yok
         };
+    }
+    
+    /// <summary>
+    /// Detay için DTO (tüm satıcılarla birlikte)
+    /// </summary>
+    private ProductResponseDto ToDetailDto(Product p)
+    {
+        var dto = ToListDto(p);
+        
+        // Satıcıları ekle
+        dto.Sellers = p.SellerProducts?
+            .Where(sp => sp.IsActive)
+            .OrderBy(sp => sp.UnitPrice)
+            .Select(sp => new ProductSellerDto
+            {
+                SellerProductId = sp.SellerProductId,
+                SellerId = sp.SellerId,
+                StoreName = sp.Seller?.StoreName ?? "",
+                StoreSlug = sp.Seller?.StoreSlug ?? "",
+                IsStoreVerified = sp.Seller?.IsStoreVerified ?? false,
+                OriginalPrice = sp.OriginalPrice,
+                DiscountPercentage = sp.DiscountPercentage,
+                UnitPrice = sp.UnitPrice,
+                Stock = sp.Stock,
+                ShippingTimeInDays = sp.ShippingTimeInDays,
+                ShippingCost = sp.ShippingCost
+            })
+            .ToList();
+        
+        return dto;
+    }
+    
+    private List<string>? ParseImageGallery(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

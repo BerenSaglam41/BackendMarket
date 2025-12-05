@@ -14,8 +14,17 @@ public class SellerProduct
     public int ProductId { get; set; }
     public Product Product { get; set; } = null!;
 
-    // Satıcıya özel fiyat ve stok
-    public decimal Price { get; set; }
+    // Satıcıya özel fiyat bilgileri
+    public decimal OriginalPrice { get; set; }          // İndirimsiz fiyat
+    public decimal DiscountPercentage { get; set; }     // % İndirim oranı (0–100)
+     
+    // Otomatik hesaplanan fiyat
+    public decimal UnitPrice 
+    {
+        get => OriginalPrice - (OriginalPrice * (DiscountPercentage / 100m));
+    }
+
+    // Satıcıya özel stok
     public int Stock { get; set; }
 
     // Kargo bilgileri

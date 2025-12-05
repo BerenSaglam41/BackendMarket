@@ -169,7 +169,10 @@ public class SellerListingCreateDto
 {
     public int ProductId { get; set; }  // Mevcut ürün ID
     
-    public decimal Price { get; set; }
+    // Fiyat bilgileri
+    public decimal OriginalPrice { get; set; }
+    public decimal DiscountPercentage { get; set; } = 0;
+    
     public int Stock { get; set; }
 
     public int ShippingTimeInDays { get; set; } = 2;
@@ -180,7 +183,10 @@ public class SellerListingCreateDto
 
 public class SellerListingUpdateDto
 {
-    public decimal Price { get; set; }
+    // Fiyat bilgileri
+    public decimal OriginalPrice { get; set; }
+    public decimal DiscountPercentage { get; set; }
+    
     public int Stock { get; set; }
 
     public int ShippingTimeInDays { get; set; }
@@ -199,8 +205,11 @@ public class SellerListingResponseDto
     public string ProductSlug { get; set; } = string.Empty;
     public string? ProductImageUrl { get; set; }
 
-    // Seller fiyat & stok
-    public decimal Price { get; set; }
+    // Seller fiyat bilgileri
+    public decimal OriginalPrice { get; set; }
+    public decimal DiscountPercentage { get; set; }
+    public decimal UnitPrice { get; set; }
+    
     public int Stock { get; set; }
 
     // Kargo
