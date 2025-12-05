@@ -1,0 +1,507 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using MarketBackend.Data;
+using MarketBackend.Models;
+using MarketBackend.Models.DTOs;
+using System.Text.Json;
+
+namespace MarketBackend.Controllers;
+
+/// <summary>
+/// Seller'ların ürün önerisi ve satış yönetimi
+/// Admin de bu endpoint'lere erişebilir (yönetim amaçlı)
+/// </summary>
+[ApiController]
+[Route("api/seller")]
+[Authorize(Roles = "Seller,Admin")]
+public class SellerProductController : ControllerBase
+{
+    private readonly ApplicationDbContext _context;
+    private readonly UserManager<AppUser> _userManager;
+
+    public SellerProductController(ApplicationDbContext context, UserManager<AppUser> userManager)
+    {
+        _context = context;
+        _userManager = userManager;
+    }
+
+
+    [HttpGet("products")]
+    public async Task<IActionResult> GetMyPendingProducts([FromQuery] string? status = null)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        var query = _context.ProductPendings
+            .Include(p => p.Brand)
+            .Include(p => p.Category)
+            .Where(p => p.SellerId == user.Id);
+
+        // Status filtresi
+        if (!string.IsNullOrEmpty(status) && Enum.TryParse<PendingStatus>(status, true, out var parsedStatus))
+        {
+            query = query.Where(p => p.Status == parsedStatus);
+        }
+
+        var products = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        var response = products.Select(p => ToSellerResponseDto(p));
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Seller'ın tek bir ürün önerisini getirir
+    /// GET /api/seller/products/{id}
+    /// </summary>
+    [HttpGet("products/{id:int}")]
+    public async Task<IActionResult> GetMyPendingProduct(int id)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        var product = await _context.ProductPendings
+            .Include(p => p.Brand)
+            .Include(p => p.Category)
+            .FirstOrDefaultAsync(p => p.ProductPendingId == id && p.SellerId == user.Id);
+
+        if (product == null)
+            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+
+        return Ok(ToSellerResponseDto(product));
+    }
+
+    /// <summary>
+    /// Yeni ürün önerisi oluşturur (Admin onayına gider)
+    /// POST /api/seller/products
+    /// </summary>
+    [HttpPost("products")]
+    public async Task<IActionResult> CreatePendingProduct(SellerProductCreateDto dto)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        // Slug benzersizlik kontrolü (hem Product hem ProductPending'de)
+        bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
+        bool slugExistsInPending = await _context.ProductPendings.AnyAsync(p => p.Slug == dto.Slug);
+        
+        if (slugExistsInProducts || slugExistsInPending)
+            return BadRequest(new { message = "Bu slug zaten kullanılıyor. Lütfen benzersiz bir slug seçin." });
+
+        // Brand kontrolü (opsiyonel)
+        if (dto.BrandId.HasValue)
+        {
+            var brandExists = await _context.Brands.AnyAsync(b => b.BrandId == dto.BrandId);
+            if (!brandExists)
+                return BadRequest(new { message = "Belirtilen marka bulunamadı." });
+        }
+
+        // Category kontrolü (opsiyonel)
+        if (dto.CategoryId.HasValue)
+        {
+            var categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
+            if (!categoryExists)
+                return BadRequest(new { message = "Belirtilen kategori bulunamadı." });
+        }
+
+        var pending = new ProductPending
+        {
+            SellerId = user.Id,
+            Name = dto.Name,
+            Slug = dto.Slug,
+            Description = dto.Description,
+            BrandId = dto.BrandId,
+            CategoryId = dto.CategoryId,
+            SellerCategorySuggestion = dto.SellerCategorySuggestion,
+            ImageUrl = dto.ImageUrl,
+            ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null,
+            SellerSku = dto.SellerSku,
+            Barcode = dto.Barcode,
+            AttributesJson = dto.AttributesJson,
+            SellerNote = dto.SellerNote,
+            ProposedPrice = dto.ProposedPrice,
+            ProposedStock = dto.ProposedStock,
+            ShippingTimeInDays = dto.ShippingTimeInDays,
+            Status = PendingStatus.Waiting,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.ProductPendings.Add(pending);
+        await _context.SaveChangesAsync();
+
+        // Brand ve Category'yi yükle (response için)
+        await _context.Entry(pending).Reference(p => p.Brand).LoadAsync();
+        await _context.Entry(pending).Reference(p => p.Category).LoadAsync();
+
+        return CreatedAtAction(
+            nameof(GetMyPendingProduct), 
+            new { id = pending.ProductPendingId }, 
+            ToSellerResponseDto(pending)
+        );
+    }
+
+    /// <summary>
+    /// Ürün önerisini günceller (Sadece Waiting veya NeedsUpdate durumunda)
+    /// PUT /api/seller/products/{id}
+    /// </summary>
+    [HttpPut("products/{id:int}")]
+    public async Task<IActionResult> UpdatePendingProduct(int id, SellerProductUpdateDto dto)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        var pending = await _context.ProductPendings
+            .FirstOrDefaultAsync(p => p.ProductPendingId == id && p.SellerId == user.Id);
+
+        if (pending == null)
+            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+
+        // Sadece Waiting veya NeedsUpdate durumunda güncellenebilir
+        if (pending.Status != PendingStatus.Waiting && pending.Status != PendingStatus.NeedsUpdate)
+            return BadRequest(new { message = "Bu ürün önerisi artık güncellenemez." });
+
+        // Slug benzersizlik kontrolü (kendisi hariç)
+        bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
+        bool slugExistsInPending = await _context.ProductPendings
+            .AnyAsync(p => p.Slug == dto.Slug && p.ProductPendingId != id);
+
+        if (slugExistsInProducts || slugExistsInPending)
+            return BadRequest(new { message = "Bu slug zaten kullanılıyor." });
+
+        // Brand kontrolü
+        if (dto.BrandId.HasValue)
+        {
+            var brandExists = await _context.Brands.AnyAsync(b => b.BrandId == dto.BrandId);
+            if (!brandExists)
+                return BadRequest(new { message = "Belirtilen marka bulunamadı." });
+        }
+
+        // Category kontrolü
+        if (dto.CategoryId.HasValue)
+        {
+            var categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
+            if (!categoryExists)
+                return BadRequest(new { message = "Belirtilen kategori bulunamadı." });
+        }
+
+        // Güncelle
+        pending.Name = dto.Name;
+        pending.Slug = dto.Slug;
+        pending.Description = dto.Description;
+        pending.BrandId = dto.BrandId;
+        pending.CategoryId = dto.CategoryId;
+        pending.SellerCategorySuggestion = dto.SellerCategorySuggestion;
+        pending.ImageUrl = dto.ImageUrl;
+        pending.ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null;
+        pending.SellerSku = dto.SellerSku;
+        pending.Barcode = dto.Barcode;
+        pending.AttributesJson = dto.AttributesJson;
+        pending.SellerNote = dto.SellerNote;
+        pending.ProposedPrice = dto.ProposedPrice;
+        pending.ProposedStock = dto.ProposedStock;
+        pending.ShippingTimeInDays = dto.ShippingTimeInDays;
+
+        // NeedsUpdate durumundaysa tekrar Waiting'e al
+        if (pending.Status == PendingStatus.NeedsUpdate)
+        {
+            pending.Status = PendingStatus.Waiting;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Ürün önerisini siler (Sadece Waiting veya NeedsUpdate durumunda)
+    /// DELETE /api/seller/products/{id}
+    /// </summary>
+    [HttpDelete("products/{id:int}")]
+    public async Task<IActionResult> DeletePendingProduct(int id)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        var pending = await _context.ProductPendings
+            .FirstOrDefaultAsync(p => p.ProductPendingId == id && p.SellerId == user.Id);
+
+        if (pending == null)
+            return NotFound(new { message = "Ürün önerisi bulunamadı." });
+
+        // Sadece Waiting veya NeedsUpdate durumunda silinebilir
+        if (pending.Status != PendingStatus.Waiting && pending.Status != PendingStatus.NeedsUpdate)
+            return BadRequest(new { message = "Bu ürün önerisi artık silinemez." });
+
+        _context.ProductPendings.Remove(pending);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    // ==========================================
+    // AKTİF SATIŞLAR (SellerProduct) İŞLEMLERİ
+    // ==========================================
+
+    /// <summary>
+    /// Seller'ın tüm aktif satışlarını listeler
+    /// GET /api/seller/listings
+    /// </summary>
+    [HttpGet("listings")]
+    public async Task<IActionResult> GetMyListings([FromQuery] bool? isActive = null)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        var query = _context.SellerProducts
+            .Include(sp => sp.Product)
+            .Where(sp => sp.SellerId == user.Id);
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(sp => sp.IsActive == isActive.Value);
+        }
+
+        var listings = await query
+            .OrderByDescending(sp => sp.CreatedAt)
+            .ToListAsync();
+
+        var response = listings.Select(sp => new SellerListingResponseDto
+        {
+            SellerProductId = sp.SellerProductId,
+            ProductId = sp.ProductId,
+            ProductName = sp.Product.Name,
+            ProductSlug = sp.Product.Slug,
+            ProductImageUrl = sp.Product.ImageUrl,
+            Price = sp.Price,
+            Stock = sp.Stock,
+            ShippingTimeInDays = sp.ShippingTimeInDays,
+            ShippingCost = sp.ShippingCost,
+            SellerNote = sp.SellerNote,
+            IsActive = sp.IsActive,
+            CreatedAt = sp.CreatedAt
+        });
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Mevcut bir ürünü satışa sunar
+    /// POST /api/seller/listings
+    /// </summary>
+    [HttpPost("listings")]
+    public async Task<IActionResult> CreateListing(SellerListingCreateDto dto)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        // Ürün var mı ve satışa açık mı?
+        var product = await _context.Products.FindAsync(dto.ProductId);
+        if (product == null)
+            return NotFound(new { message = "Ürün bulunamadı." });
+
+        if (!product.IsAvailable)
+            return BadRequest(new { message = "Bu ürün şu an satışa kapalı." });
+
+        // Kullanıcının rollerini al
+        var userRoles = await _userManager.GetRolesAsync(user);
+        var isAdmin = userRoles.Contains("Admin");
+
+        // ⭐ Ürün sahiplik kontrolü (Admin bypass edebilir)
+        // Eğer ürün bir seller tarafından oluşturulduysa, sadece o seller satabilir
+        // Admin istisna: test/yönetim amaçlı herhangi bir ürünü satışa sunabilir
+        if (!isAdmin && product.CreatedBySellerId != null && product.CreatedBySellerId != user.Id)
+        {
+            return BadRequest(new { message = "Bu ürün başka bir satıcıya ait. Sadece kendi ürünlerinizi veya genel katalogdaki ürünleri satabilirsiniz." });
+        }
+
+        // Aynı ürünü zaten satıyor mu?
+        var existingListing = await _context.SellerProducts
+            .AnyAsync(sp => sp.SellerId == user.Id && sp.ProductId == dto.ProductId);
+
+        if (existingListing)
+            return BadRequest(new { message = "Bu ürünü zaten satıyorsunuz." });
+
+        var listing = new SellerProduct
+        {
+            SellerId = user.Id,
+            ProductId = dto.ProductId,
+            Price = dto.Price,
+            Stock = dto.Stock,
+            ShippingTimeInDays = dto.ShippingTimeInDays,
+            ShippingCost = dto.ShippingCost,
+            SellerNote = dto.SellerNote,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.SellerProducts.Add(listing);
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetMyListings), new { }, new SellerListingResponseDto
+        {
+            SellerProductId = listing.SellerProductId,
+            ProductId = listing.ProductId,
+            ProductName = product.Name,
+            ProductSlug = product.Slug,
+            ProductImageUrl = product.ImageUrl,
+            Price = listing.Price,
+            Stock = listing.Stock,
+            ShippingTimeInDays = listing.ShippingTimeInDays,
+            ShippingCost = listing.ShippingCost,
+            SellerNote = listing.SellerNote,
+            IsActive = listing.IsActive,
+            CreatedAt = listing.CreatedAt
+        });
+    }
+
+    /// <summary>
+    /// Satışı günceller (fiyat, stok, kargo vs.)
+    /// PUT /api/seller/listings/{id}
+    /// </summary>
+    [HttpPut("listings/{id:int}")]
+    public async Task<IActionResult> UpdateListing(int id, SellerListingUpdateDto dto)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        var listing = await _context.SellerProducts
+            .FirstOrDefaultAsync(sp => sp.SellerProductId == id && sp.SellerId == user.Id);
+
+        if (listing == null)
+            return NotFound(new { message = "Satış bulunamadı." });
+
+        listing.Price = dto.Price;
+        listing.Stock = dto.Stock;
+        listing.ShippingTimeInDays = dto.ShippingTimeInDays;
+        listing.ShippingCost = dto.ShippingCost;
+        listing.SellerNote = dto.SellerNote;
+        listing.IsActive = dto.IsActive;
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Satışı kaldırır
+    /// DELETE /api/seller/listings/{id}
+    /// </summary>
+    [HttpDelete("listings/{id:int}")]
+    public async Task<IActionResult> DeleteListing(int id)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        var listing = await _context.SellerProducts
+            .FirstOrDefaultAsync(sp => sp.SellerProductId == id && sp.SellerId == user.Id);
+
+        if (listing == null)
+            return NotFound(new { message = "Satış bulunamadı." });
+
+        _context.SellerProducts.Remove(listing);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    // ==========================================
+    // DASHBOARD & İSTATİSTİKLER
+    // ==========================================
+
+    /// <summary>
+    /// Seller dashboard özet bilgileri
+    /// GET /api/seller/dashboard
+    /// </summary>
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> GetDashboard()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized(new { message = "Kullanıcı bulunamadı." });
+
+        // Pending ürün sayıları
+        var pendingCounts = await _context.ProductPendings
+            .Where(p => p.SellerId == user.Id)
+            .GroupBy(p => p.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        // Aktif satış sayısı
+        var activeListings = await _context.SellerProducts
+            .CountAsync(sp => sp.SellerId == user.Id && sp.IsActive);
+
+        var totalListings = await _context.SellerProducts
+            .CountAsync(sp => sp.SellerId == user.Id);
+
+        return Ok(new
+        {
+            PendingProducts = new
+            {
+                Waiting = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.Waiting)?.Count ?? 0,
+                Approved = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.Approved)?.Count ?? 0,
+                Rejected = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.Rejected)?.Count ?? 0,
+                NeedsUpdate = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.NeedsUpdate)?.Count ?? 0
+            },
+            Listings = new
+            {
+                Active = activeListings,
+                Total = totalListings
+            }
+        });
+    }
+
+    // ==========================================
+    // HELPER METHODS
+    // ==========================================
+
+    private static SellerProductResponseDto ToSellerResponseDto(ProductPending p)
+    {
+        List<string>? imageGallery = null;
+        if (!string.IsNullOrEmpty(p.ImageGalleryJson))
+        {
+            try
+            {
+                imageGallery = JsonSerializer.Deserialize<List<string>>(p.ImageGalleryJson);
+            }
+            catch { }
+        }
+
+        return new SellerProductResponseDto
+        {
+            ProductPendingId = p.ProductPendingId,
+            Name = p.Name,
+            Slug = p.Slug,
+            Description = p.Description,
+            BrandId = p.BrandId,
+            BrandName = p.Brand?.Name,
+            CategoryId = p.CategoryId,
+            CategoryName = p.Category?.Name,
+            SellerCategorySuggestion = p.SellerCategorySuggestion,
+            ImageUrl = p.ImageUrl,
+            ImageGallery = imageGallery,
+            SellerSku = p.SellerSku,
+            Barcode = p.Barcode,
+            AttributesJson = p.AttributesJson,
+            SellerNote = p.SellerNote,
+            ProposedPrice = p.ProposedPrice,
+            ProposedStock = p.ProposedStock,
+            ShippingTimeInDays = p.ShippingTimeInDays,
+            Status = p.Status.ToString(),
+            AdminNote = p.AdminNote,
+            ReviewedAt = p.ReviewedAt,
+            CreatedAt = p.CreatedAt
+        };
+    }
+}
