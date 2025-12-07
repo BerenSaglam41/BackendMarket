@@ -19,5 +19,5 @@ public class WishlistItem
     public decimal PriceAtAddition { get; set; }
 
     // Kullanıcı hangi varyantı beğendi?
-    public string SelectedVariant { get; set; }        // opsiyonel / JSON
+    public string? SelectedVariant { get; set; }        // opsiyonel / JSON
 }

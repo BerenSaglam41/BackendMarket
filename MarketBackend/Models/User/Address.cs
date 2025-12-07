@@ -14,23 +14,25 @@ public class Address
     public string Title { get; set; }                   // "Evim", "İş", "Yazlık"
 
     // Teslimat Kişisi Bilgileri
-    public string ContactName { get; set; }             // Ad + Soyad
-    public string ContactPhone { get; set; }
+    public string ContactName { get; set; }             // Alıcı adı (Kime teslim edilecek?)
+    public string ContactPhone { get; set; }            // Alıcı telefonu
 
-    // Konum Bilgileri
-    public string Country { get; set; }                 // Genelde "Türkiye"
-    public string City { get; set; }                    // İl
-    public string District { get; set; }                // İlçe
-    public string Neighborhood { get; set; }            // Mahalle (önerilir)
-    public string StreetAddress { get; set; }           // Sokak / Cadde / Apartman
-    public string BuildingNumber { get; set; }          // Kapı no, Daire no
-    public string ZipCode { get; set; }                 // Opsiyonel
+    // Konum Bilgileri (Dropdown'lardan seçilir)
+    public string Country { get; set; }                 // "Türkiye" (Sabit veya dropdown)
+    public string City { get; set; }                    // İl (Dropdown)
+    public string District { get; set; }                // İlçe (Dropdown)
+    public string Neighborhood { get; set; }            // Mahalle (Dropdown)
+    
+    // Tam Adres (Kullanıcı yazar: Sokak, Cadde, Bina No, Daire vb.)
+    public string FullAddress { get; set; }             // Örn: "Atatürk Caddesi No:45 Daire:8"
+    
+    public string PostalCode { get; set; }              // Posta Kodu
 
     // Varsayılan Adres
-    public bool IsDefaultAddress { get; set; }
+    public bool IsDefault { get; set; }
 
     // Adres Türü
-    public AddressType AddressType { get; set; }             // "Teslimat", "Fatura"
+    public AddressType AddressType { get; set; }        // Shipping, Billing, Both
 
     // Oluşturulma ve Güncellenme
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

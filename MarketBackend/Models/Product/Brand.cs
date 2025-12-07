@@ -28,6 +28,9 @@ public class Brand
 
     public int PriorityRank { get; set; }             // Görünüm sırası
 
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    // Coupon Relations
+    public ICollection<Coupon> Coupons {get;set;} = new List<Coupon>();
 }

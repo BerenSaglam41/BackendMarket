@@ -12,7 +12,8 @@ public class ShoppingCart
     public string SessionId { get; set; }
 
     // Kuponlar
-    public string CouponCode { get; set; }
+    public string? AppliedCouponCode { get; set; }
+    public Coupon? AppliedCoupon { get; set; }
     public decimal DiscountApplied { get; set; }
 
     // Sepet expire kontrolü
@@ -32,4 +33,5 @@ public class ShoppingCart
 
     // Toplam hesaplama (DB saklanabilir veya dinamik yapılabilir)
     public decimal TotalAmount { get; set; }
+    // 
 }

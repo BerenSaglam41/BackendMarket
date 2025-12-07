@@ -1,10 +1,9 @@
-using System.Data;
 using FluentValidation;
 using MarketBackend.Models.DTOs;
 
-public class BrandCreateDtoValidator : AbstractValidator<BrandCreateDto>
+public class BrandUpdateDtoValidator : AbstractValidator<BrandUpdateDto>
 {
-    public BrandCreateDtoValidator()
+    public BrandUpdateDtoValidator()
     {
         RuleFor(b => b.Name)
             .NotEmpty().WithMessage("Marka adı boş olamaz.")
@@ -18,10 +17,13 @@ public class BrandCreateDtoValidator : AbstractValidator<BrandCreateDto>
             
         RuleFor(b => b.Description)
             .MaximumLength(500).WithMessage("Açıklama en fazla 500 karakter olabilir.");
+            
         RuleFor(b => b.MetaTitle)
             .MaximumLength(150).WithMessage("Meta başlık en fazla 150 karakter olabilir.");
+            
         RuleFor(b => b.MetaDescription)
             .MaximumLength(300).WithMessage("Meta açıklama en fazla 300 karakter olabilir.");
+            
         RuleFor(b => b.SupportEmail)
             .EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.SupportEmail))
             .WithMessage("Geçersiz email formatı.");

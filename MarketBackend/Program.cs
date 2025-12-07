@@ -57,11 +57,12 @@ builder.Services.AddJwtAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
-// Roller seed ediliyor
+// Roller ve admin kullanıcı seed ediliyor
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<AppRole>>();
-    await RoleSeeder.SeedRoleAsync(roleManager);
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    await RoleSeeder.SeedRoleAsync(roleManager, userManager);
 }
 
 // ⭐ Global Exception Handling Middleware (EN BAŞTA!)

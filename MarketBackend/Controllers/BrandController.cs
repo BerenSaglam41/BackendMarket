@@ -184,6 +184,11 @@ public class BrandController : ControllerBase
         if (brand == null)
             throw new NotFoundException($"ID: {id} olan marka bulunamadı.");
 
+        // Markaya ait ürün var mı kontrol et
+        var hasProducts = await _context.Products.AnyAsync(p => p.BrandId == id);
+        if (hasProducts)
+            throw new BadRequestException($"Bu markaya ait ürünler bulunduğu için silinemez. Önce ürünleri silin veya başka bir markaya atayın.");
+
         _context.Brands.Remove(brand);
         await _context.SaveChangesAsync();
         return NoContent();

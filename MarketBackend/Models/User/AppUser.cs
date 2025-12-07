@@ -38,4 +38,8 @@ public class AppUser : IdentityUser
     // Seller ilişkileri
     public ICollection<SellerProduct> SellerProducts { get; set; } = new List<SellerProduct>();
     public ICollection<ProductPending> ProductPendings { get; set; } = new List<ProductPending>();
+    
+    // Coupon ilişkileri
+    public ICollection<Coupon> CreatedAdminCoupons { get; set; } = new List<Coupon>();
+    public ICollection<Coupon> CreatedSellerCoupons { get; set; } = new List<Coupon>();
 }

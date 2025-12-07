@@ -155,6 +155,17 @@ public class CategoryController : ControllerBase
         var category = await _context.Categories.FindAsync(id);
         if(category == null)
             throw new NotFoundException($"ID: {id} olan kategori bulunamadı.");
+        
+        // Kategoriye ait ürün var mı kontrol et
+        var hasProducts = await _context.Products.AnyAsync(p => p.CategoryId == id);
+        if (hasProducts)
+            throw new BadRequestException($"Bu kategoriye ait ürünler bulunduğu için silinemez. Önce ürünleri silin veya başka bir kategoriye atayın.");
+        
+        // Alt kategoriler var mı kontrol et
+        var hasSubCategories = await _context.Categories.AnyAsync(c => c.ParentCategoryId == id);
+        if (hasSubCategories)
+            throw new BadRequestException($"Bu kategorinin alt kategorileri bulunduğu için silinemez. Önce alt kategorileri silin.");
+        
         _context.Categories.Remove(category);
         await _context.SaveChangesAsync();
         return NoContent();

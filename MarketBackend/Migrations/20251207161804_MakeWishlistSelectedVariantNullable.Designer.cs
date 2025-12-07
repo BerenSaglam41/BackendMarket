@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MarketBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251204214804_MakeAppUserFieldsNullable")]
-    partial class MakeAppUserFieldsNullable
+    [Migration("20251207161804_MakeWishlistSelectedVariantNullable")]
+    partial class MakeWishlistSelectedVariantNullable
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -30,10 +30,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("AppUserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("BuildingNumber")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -60,14 +56,18 @@ namespace MarketBackend.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsDefaultAddress")
+                    b.Property<string>("FullAddress")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDefault")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Neighborhood")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("StreetAddress")
+                    b.Property<string>("PostalCode")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -76,10 +76,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ZipCode")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("AddressId");
@@ -99,7 +95,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -127,9 +122,6 @@ namespace MarketBackend.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("BrandId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("TEXT");
@@ -155,6 +147,9 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsStoreVerified")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastLogin")
@@ -199,6 +194,21 @@ namespace MarketBackend.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("StoreDescription")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoreLogoUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoreName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StorePhone")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoreSlug")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("INTEGER");
 
@@ -207,8 +217,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("BrandId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -296,7 +304,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("AppliedCouponCode")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("DateAdded")
@@ -321,8 +328,10 @@ namespace MarketBackend.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("SelectedVariant")
-                        .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("SellerProductId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("ShoppingCartId")
                         .HasColumnType("INTEGER");
@@ -336,6 +345,8 @@ namespace MarketBackend.Migrations
                     b.HasKey("CartItemId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("SellerProductId");
 
                     b.HasIndex("ShoppingCartId");
 
@@ -570,6 +581,17 @@ namespace MarketBackend.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SellerId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SellerProductId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SellerStoreName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<decimal>("TaxRate")
                         .HasColumnType("TEXT");
 
@@ -577,7 +599,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TrackingNumber")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("UnitPrice")
@@ -588,6 +609,8 @@ namespace MarketBackend.Migrations
                     b.HasIndex("OrderId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("SellerProductId");
 
                     b.ToTable("OrderItems");
                 });
@@ -673,42 +696,38 @@ namespace MarketBackend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("BrandId")
+                    b.Property<int?>("BrandId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("CategoryId")
+                    b.Property<int?>("CategoryId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
+                    b.Property<string>("CreatedBySellerId")
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("DiscountPercentage")
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageGalleryJson")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ImageUrl")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsAvailable")
+                    b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("MetaDescription")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("MetaTitle")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("OriginalPrice")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("ReviewCount")
@@ -717,9 +736,6 @@ namespace MarketBackend.Migrations
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("StockQuantity")
-                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
@@ -730,7 +746,92 @@ namespace MarketBackend.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("CreatedBySellerId");
+
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("MarketBackend.Models.ProductPending", b =>
+                {
+                    b.Property<int>("ProductPendingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AdminNote")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AttributesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Barcode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("BrandId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageGalleryJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ProposedPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProposedStock")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReviewedByAdminId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SellerCategorySuggestion")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SellerId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SellerNote")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SellerSku")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ShippingTimeInDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProductPendingId");
+
+                    b.HasIndex("BrandId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("SellerId");
+
+                    b.ToTable("ProductPendings");
                 });
 
             modelBuilder.Entity("MarketBackend.Models.Review", b =>
@@ -789,6 +890,52 @@ namespace MarketBackend.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Reviews");
+                });
+
+            modelBuilder.Entity("MarketBackend.Models.SellerProduct", b =>
+                {
+                    b.Property<int>("SellerProductId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("DiscountPercentage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("OriginalPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SellerId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SellerNote")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ShippingCost")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ShippingTimeInDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Stock")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("SellerProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SellerId");
+
+                    b.ToTable("SellerProducts");
                 });
 
             modelBuilder.Entity("MarketBackend.Models.Shipment", b =>
@@ -950,7 +1097,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("SelectedVariant")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("WishlistItemId");
@@ -1075,21 +1221,18 @@ namespace MarketBackend.Migrations
                     b.Navigation("AppUser");
                 });
 
-            modelBuilder.Entity("MarketBackend.Models.AppUser", b =>
-                {
-                    b.HasOne("MarketBackend.Models.Brand", "Brand")
-                        .WithMany()
-                        .HasForeignKey("BrandId");
-
-                    b.Navigation("Brand");
-                });
-
             modelBuilder.Entity("MarketBackend.Models.CartItem", b =>
                 {
                     b.HasOne("MarketBackend.Models.Product", "Product")
                         .WithMany("CartItems")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MarketBackend.Models.SellerProduct", "SellerProduct")
+                        .WithMany()
+                        .HasForeignKey("SellerProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("MarketBackend.Models.ShoppingCart", "ShoppingCart")
@@ -1099,6 +1242,8 @@ namespace MarketBackend.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+
+                    b.Navigation("SellerProduct");
 
                     b.Navigation("ShoppingCart");
                 });
@@ -1165,9 +1310,17 @@ namespace MarketBackend.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MarketBackend.Models.SellerProduct", "SellerProduct")
+                        .WithMany()
+                        .HasForeignKey("SellerProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Order");
 
                     b.Navigation("Product");
+
+                    b.Navigation("SellerProduct");
                 });
 
             modelBuilder.Entity("MarketBackend.Models.PaymentTransaction", b =>
@@ -1185,19 +1338,48 @@ namespace MarketBackend.Migrations
                 {
                     b.HasOne("MarketBackend.Models.Brand", "Brand")
                         .WithMany("Products")
-                        .HasForeignKey("BrandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("BrandId");
 
                     b.HasOne("MarketBackend.Models.Category", "Category")
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MarketBackend.Models.AppUser", "CreatedBySeller")
+                        .WithMany()
+                        .HasForeignKey("CreatedBySellerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Brand");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("CreatedBySeller");
+                });
+
+            modelBuilder.Entity("MarketBackend.Models.ProductPending", b =>
+                {
+                    b.HasOne("MarketBackend.Models.Brand", "Brand")
+                        .WithMany()
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MarketBackend.Models.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MarketBackend.Models.AppUser", "Seller")
+                        .WithMany("ProductPendings")
+                        .HasForeignKey("SellerId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Brand");
 
                     b.Navigation("Category");
+
+                    b.Navigation("Seller");
                 });
 
             modelBuilder.Entity("MarketBackend.Models.Review", b =>
@@ -1217,6 +1399,25 @@ namespace MarketBackend.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MarketBackend.Models.SellerProduct", b =>
+                {
+                    b.HasOne("MarketBackend.Models.Product", "Product")
+                        .WithMany("SellerProducts")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MarketBackend.Models.AppUser", "Seller")
+                        .WithMany("SellerProducts")
+                        .HasForeignKey("SellerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Seller");
                 });
 
             modelBuilder.Entity("MarketBackend.Models.Shipment", b =>
@@ -1328,10 +1529,13 @@ namespace MarketBackend.Migrations
 
                     b.Navigation("Orders");
 
+                    b.Navigation("ProductPendings");
+
                     b.Navigation("Reviews");
 
-                    b.Navigation("ShoppingCart")
-                        .IsRequired();
+                    b.Navigation("SellerProducts");
+
+                    b.Navigation("ShoppingCart");
 
                     b.Navigation("WishlistItems");
                 });
@@ -1360,6 +1564,8 @@ namespace MarketBackend.Migrations
                     b.Navigation("OrderItems");
 
                     b.Navigation("Reviews");
+
+                    b.Navigation("SellerProducts");
 
                     b.Navigation("WishlistItems");
                 });

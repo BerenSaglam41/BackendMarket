@@ -23,6 +23,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<Address> Addresses { get; set; }
 
     public DbSet<ShoppingCart> ShoppingCarts { get; set; }
+    public DbSet<Coupon> Coupons { get; set; }
     public DbSet<CartItem> CartItems { get; set; }
     public DbSet<WishlistItem> WishlistItems { get; set; }
 
@@ -100,14 +101,14 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .WithMany(u => u.ProductPendings)
             .HasForeignKey(pp => pp.SellerId)
             .OnDelete(DeleteBehavior.Cascade);
-            
+
         // PRODUCT PENDING → Brand (Optional)
         builder.Entity<ProductPending>()
             .HasOne(pp => pp.Brand)
             .WithMany()
             .HasForeignKey(pp => pp.BrandId)
             .OnDelete(DeleteBehavior.SetNull);
-            
+
         // PRODUCT PENDING → Category (Optional)
         builder.Entity<ProductPending>()
             .HasOne(pp => pp.Category)
@@ -135,5 +136,30 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .WithMany()
             .HasForeignKey(oi => oi.SellerProductId)
             .OnDelete(DeleteBehavior.Restrict);  // SellerProduct silinirse sipariş kaydı kalır
+
+        // Coupon relationships
+        builder.Entity<Coupon>()
+            .HasOne(c => c.CreatedByAdmin)
+            .WithMany(u => u.CreatedAdminCoupons)
+            .HasForeignKey(c => c.CreatedByAdminId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Coupon>()
+            .HasOne(c => c.CreatedBySeller)
+            .WithMany(u => u.CreatedSellerCoupons)
+            .HasForeignKey(c => c.CreatedBySellerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Coupon>()
+            .HasIndex(c => c.Code)
+            .IsUnique();
+
+        builder.Entity<ShoppingCart>()
+            .HasOne(sc => sc.AppliedCoupon)
+            .WithMany()
+            .HasForeignKey(sc => sc.AppliedCouponCode)
+            .HasPrincipalKey(c => c.Code)
+            .OnDelete(DeleteBehavior.SetNull);
+
     }
 }

@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MarketBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251205185701_AddSellerToCartAndOrder")]
-    partial class AddSellerToCartAndOrder
+    [Migration("20251207144740_UpdateAddressToOptimizedStructure")]
+    partial class UpdateAddressToOptimizedStructure
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -30,10 +30,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("AppUserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("BuildingNumber")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -60,14 +56,18 @@ namespace MarketBackend.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsDefaultAddress")
+                    b.Property<string>("FullAddress")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDefault")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Neighborhood")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("StreetAddress")
+                    b.Property<string>("PostalCode")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -76,10 +76,6 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ZipCode")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("AddressId");
@@ -715,13 +711,13 @@ namespace MarketBackend.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("DiscountPercentage")
+                    b.Property<string>("ImageGalleryJson")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsAvailable")
+                    b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("MetaDescription")
@@ -734,18 +730,12 @@ namespace MarketBackend.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("OriginalPrice")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("ReviewCount")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("StockQuantity")
-                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
@@ -911,10 +901,13 @@ namespace MarketBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal>("DiscountPercentage")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
-                    b.Property<decimal>("Price")
+                    b.Property<decimal>("OriginalPrice")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("ProductId")
