@@ -70,7 +70,7 @@ public class OrderController : ControllerBase
             if (coupon != null && 
                 coupon.ValidFrom <= DateTime.UtcNow && 
                 coupon.ValidUntil >= DateTime.UtcNow && 
-                coupon.CurrentUsageCount < coupon.MaxUsageCount)
+                (!coupon.MaxUsageCount.HasValue || coupon.CurrentUsageCount < coupon.MaxUsageCount.Value))
             {
                 // Minimum tutar kontrolü
                 if (subtotal >= coupon.MinimumPurchaseAmount)
