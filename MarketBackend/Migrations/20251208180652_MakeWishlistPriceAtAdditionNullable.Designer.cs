@@ -3,6 +3,7 @@ using System;
 using MarketBackend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MarketBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251208180652_MakeWishlistPriceAtAdditionNullable")]
+    partial class MakeWishlistPriceAtAdditionNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
@@ -1106,6 +1109,7 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("IpAddress")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
@@ -1115,6 +1119,7 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SessionId")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalAmount")
@@ -1126,10 +1131,6 @@ namespace MarketBackend.Migrations
                         .IsUnique();
 
                     b.HasIndex("AppliedCouponCode");
-
-                    b.HasIndex("AppUserId", "IsActive")
-                        .IsUnique()
-                        .HasFilter("IsActive = 1");
 
                     b.ToTable("ShoppingCarts");
                 });

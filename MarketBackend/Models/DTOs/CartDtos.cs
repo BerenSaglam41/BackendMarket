@@ -10,12 +10,12 @@ public class CartItemResponseDto
     // Ürün bilgileri
     public int CartItemId { get; set; }
     public int ProductId { get; set; }
-    public string ProductName { get; set; }
-    public string ProductImage { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public string ProductImage { get; set; } = string.Empty;
     
     // Satıcı bilgileri
     public int SellerProductId { get; set; }
-    public string StoreName { get; set; }
+    public string StoreName { get; set; } = string.Empty;
     
     // Fiyat bilgileri
     public decimal UnitPrice { get; set; }

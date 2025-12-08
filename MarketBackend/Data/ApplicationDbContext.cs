@@ -182,6 +182,12 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .HasPrincipalKey(c => c.Code)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Her kullanıcının sadece 1 aktif sepeti olabilir
+        builder.Entity<ShoppingCart>()
+            .HasIndex(sc => new { sc.AppUserId, sc.IsActive })
+            .IsUnique()
+            .HasFilter("IsActive = 1");
+
         // Product Slug unique index
         builder.Entity<Product>()
             .HasIndex(p => p.Slug)
