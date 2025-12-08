@@ -67,7 +67,7 @@ public class CartController : ControllerBase
             ProductId = item.ProductId,
             ProductName = item.Product.Name,
             ProductImage = item.Product.ImageUrl ?? "",
-            SellerProductId = item.SellerProductId,
+            ListingId = item.SellerProductId,
             StoreName = item.SellerProduct.Seller?.StoreName ?? "",
             UnitPrice = item.UnitPrice,
             Quantity = item.Quantity,
@@ -107,7 +107,7 @@ public class CartController : ControllerBase
         var sellerProduct = await _context.SellerProducts
             .Include(sp => sp.Product)
             .Include(sp => sp.Seller)
-            .FirstOrDefaultAsync(sp => sp.SellerProductId == dto.SellerProductId);
+            .FirstOrDefaultAsync(sp => sp.SellerProductId == dto.ListingId);
 
         if (sellerProduct == null)
             throw new NotFoundException("Satıcı ürünü bulunamadı.");
@@ -145,7 +145,7 @@ public class CartController : ControllerBase
 
         // Aynı ürün zaten sepette mi?
         var existingItem = cart.Items.FirstOrDefault(i => 
-            i.SellerProductId == dto.SellerProductId && 
+            i.SellerProductId == dto.ListingId && 
             i.SelectedVariant == dto.SelectedVariant);
 
         if (existingItem != null)
@@ -167,7 +167,7 @@ public class CartController : ControllerBase
             {
                 ShoppingCartId = cart.ShoppingCartId,
                 ProductId = sellerProduct.ProductId,
-                SellerProductId = dto.SellerProductId,
+                SellerProductId = dto.ListingId,
                 Quantity = dto.Quantity,
                 UnitPrice = sellerProduct.UnitPrice,
                 TotalPrice = sellerProduct.UnitPrice * dto.Quantity,

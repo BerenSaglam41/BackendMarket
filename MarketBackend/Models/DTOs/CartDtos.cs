@@ -1,6 +1,6 @@
 public class CartAddDto
 {
-    public int SellerProductId {get;set;}
+    public int ListingId {get;set;}  // SellerProduct (Listing) ID
     public int Quantity {get;set;}
     public string? SelectedVariant {get;set;}
 }
@@ -14,7 +14,7 @@ public class CartItemResponseDto
     public string ProductImage { get; set; } = string.Empty;
     
     // Satıcı bilgileri
-    public int SellerProductId { get; set; }
+    public int ListingId { get; set; }  // SellerProduct (Listing) ID
     public string StoreName { get; set; } = string.Empty;
     
     // Fiyat bilgileri

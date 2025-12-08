@@ -7,7 +7,7 @@ public class CartAddDtoValidator : AbstractValidator<CartAddDto>
 {
     public CartAddDtoValidator()
     {
-        RuleFor(x => x.SellerProductId)
+        RuleFor(x => x.ListingId)
             .GreaterThan(0).WithMessage("Geçerli bir satıcı ürün ID'si belirtilmelidir.");
 
         RuleFor(x => x.Quantity)
