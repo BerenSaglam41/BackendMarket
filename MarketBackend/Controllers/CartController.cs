@@ -190,14 +190,11 @@ public class CartController : ControllerBase
     /// PUT /api/cart/{cartItemId}
     /// </summary>
     [HttpPut("{cartItemId:int}")]
-    public async Task<IActionResult> UpdateCartItem(int cartItemId, [FromBody] int quantity)
+    public async Task<IActionResult> UpdateCartItem(int cartItemId, CartUpdateQuantityDto dto)
     {
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrEmpty(userId))
             throw new UnauthorizedException("Giriş yapmanız gerekiyor.");
-
-        if (quantity < 1)
-            throw new BadRequestException("Miktar en az 1 olmalıdır.");
 
         var cartItem = await _context.CartItems
             .Include(ci => ci.ShoppingCart)
@@ -207,11 +204,11 @@ public class CartController : ControllerBase
         if (cartItem == null)
             throw new NotFoundException("Sepet ürünü bulunamadı.");
 
-        if (cartItem.SellerProduct.Stock < quantity)
+        if (cartItem.SellerProduct.Stock < dto.Quantity)
             throw new BadRequestException($"Yetersiz stok. Mevcut stok: {cartItem.SellerProduct.Stock}");
 
-        cartItem.Quantity = quantity;
-        cartItem.TotalPrice = cartItem.UnitPrice * quantity;
+        cartItem.Quantity = dto.Quantity;
+        cartItem.TotalPrice = cartItem.UnitPrice * dto.Quantity;
         cartItem.LastUpdated = DateTime.UtcNow;
         cartItem.ShoppingCart.LastAccessed = DateTime.UtcNow;
 
@@ -293,11 +290,11 @@ public class CartController : ControllerBase
     }
 
     /// <summary>
-    /// Sepetteki ürünün checkout seçimini değiştir
-    /// PUT /api/cart/{cartItemId}/select
+    /// Sepetteki ürünün checkout seçimini toggle et (aç/kapat)
+    /// PUT /api/cart/{cartItemId}/toggle-selection
     /// </summary>
-    [HttpPut("{cartItemId:int}/select")]
-    public async Task<IActionResult> ToggleSelection(int cartItemId, [FromBody] bool isSelected)
+    [HttpPut("{cartItemId:int}/toggle-selection")]
+    public async Task<IActionResult> ToggleSelection(int cartItemId)
     {
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrEmpty(userId))
@@ -310,11 +307,16 @@ public class CartController : ControllerBase
         if (cartItem == null)
             throw new NotFoundException("Sepet ürünü bulunamadı.");
 
-        cartItem.IsSelectedForCheckout = isSelected;
+        // Toggle: true -> false, false -> true
+        cartItem.IsSelectedForCheckout = !cartItem.IsSelectedForCheckout;
         cartItem.LastUpdated = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Seçim güncellendi." });
+        return Ok(new 
+        { 
+            message = "Seçim güncellendi.",
+            isSelected = cartItem.IsSelectedForCheckout
+        });
     }
 }

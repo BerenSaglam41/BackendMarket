@@ -5,6 +5,11 @@ public class CartAddDto
     public string? SelectedVariant {get;set;}
 }
 
+public class CartUpdateQuantityDto
+{
+    public int Quantity { get; set; }
+}
+
 public class CartItemResponseDto
 {
     // Ürün bilgileri
