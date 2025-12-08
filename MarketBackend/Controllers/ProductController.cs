@@ -32,6 +32,7 @@ public class ProductController : ControllerBase
         [FromQuery] int? brandId = null,
         [FromQuery] int? categoryId = null,
         [FromQuery] string? search = null,
+        [FromQuery] string? createdBySellerId = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
@@ -57,6 +58,10 @@ public class ProductController : ControllerBase
         
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(p => p.Name.Contains(search) || p.Description!.Contains(search));
+        
+        // Belirli seller'ın oluşturduğu ürünler
+        if (!string.IsNullOrWhiteSpace(createdBySellerId))
+            query = query.Where(p => p.CreatedBySellerId == createdBySellerId);
         
         var totalCount = await query.CountAsync();
         
@@ -200,6 +205,20 @@ public class ProductController : ControllerBase
         product.ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null;
         product.MetaTitle = dto.MetaTitle;
         product.MetaDescription = dto.MetaDescription;
+        
+        // Ürün pasif yapılırsa tüm satış ilanlarını da pasif yap
+        if (product.IsActive && !dto.IsActive)
+        {
+            var sellerProducts = await _context.SellerProducts
+                .Where(sp => sp.ProductId == id)
+                .ToListAsync();
+            
+            foreach (var sp in sellerProducts)
+            {
+                sp.IsActive = false;
+            }
+        }
+        
         product.IsActive = dto.IsActive;
         product.UpdatedAt = DateTime.UtcNow;
         
@@ -215,22 +234,32 @@ public class ProductController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        var product = await _context.Products.FindAsync(id);
+        var product = await _context.Products
+            .Include(p => p.SellerProducts)
+            .Include(p => p.Reviews)
+            .Include(p => p.WishlistItems)
+            .FirstOrDefaultAsync(p => p.ProductId == id);
+            
         if (product == null)
             throw new NotFoundException($"ID: {id} olan ürün bulunamadı.");
 
-        // Aktif satış kontrolü - Bu ürünü satan seller var mı?
-        var activeListings = await _context.SellerProducts
-            .Where(sp => sp.ProductId == id && sp.IsActive)
-            .CountAsync();
-
+        // Aktif satış kontrolü
+        var activeListings = product.SellerProducts.Count(sp => sp.IsActive);
         if (activeListings > 0)
             throw new BadRequestException(
-                $"Bu ürünü aktif olarak satan {activeListings} satıcı var. Önce satışları kapatın veya ürünü pasife alın.",
+                $"Bu ürünü aktif olarak satan {activeListings} satıcı var. Önce satışları kapatın.",
                 new List<string> { $"Aktif satış sayısı: {activeListings}" }
             );
 
+        // Manuel silme: Reviews ve WishlistItems (Product'a bağlı)
+        _context.Reviews.RemoveRange(product.Reviews);
+        _context.WishlistItems.RemoveRange(product.WishlistItems);
+        
+        // Product silinince Cascade ile otomatik silinecekler:
+        // - SellerProducts (Cascade)
+        // - CartItems (SellerProduct üzerinden Cascade)
         _context.Products.Remove(product);
+        
         await _context.SaveChangesAsync();
 
         return NoContent();
@@ -301,7 +330,7 @@ public class ProductController : ControllerBase
             .OrderBy(sp => sp.UnitPrice)
             .Select(sp => new ProductSellerDto
             {
-                SellerProductId = sp.SellerProductId,
+                ListingId = sp.SellerProductId,
                 SellerId = sp.SellerId,
                 StoreName = sp.Seller?.StoreName ?? "",
                 StoreSlug = sp.Seller?.StoreSlug ?? "",

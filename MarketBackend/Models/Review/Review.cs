@@ -6,15 +6,15 @@ public class Review
 
     // Ürün ilişkisi
     public int ProductId { get; set; }
-    public Product Product { get; set; }               // Navigation
+    public Product Product { get; set; } = null!;      // Navigation
 
     // Kullanıcı ilişkisi
-    public string UserId { get; set; }
-    public AppUser User { get; set; }                  // Navigation
+    public string UserId { get; set; } = string.Empty;
+    public AppUser User { get; set; } = null!;         // Navigation
 
     // Rating & yorum
     public int Rating { get; set; }                    // 1–5
-    public string Comment { get; set; }                // Metin
+    public string? Comment { get; set; }               // Metin (nullable - kısa yorum olabilir)
 
     // Moderasyon
     public bool IsApproved { get; set; }               
@@ -23,10 +23,10 @@ public class Review
     public int ReportCount { get; set; }
 
     // Medya
-    public string ImageUrl { get; set; }               
+    public string? ImageUrl { get; set; }              // Nullable
 
     // Admin cevapları
-    public string AdminReply { get; set; }
+    public string? AdminReply { get; set; }            // Nullable
     public DateTime? RepliedAt { get; set; }
 
     // Zaman

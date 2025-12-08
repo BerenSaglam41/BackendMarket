@@ -180,11 +180,8 @@ public class AdminPendingController : ControllerBase
 
             _context.SellerProducts.Add(sellerProduct);
 
-            // 3. Pending'i güncelle
-            pending.Status = PendingStatus.Approved;
-            pending.AdminNote = dto?.AdminNote;
-            pending.ReviewedAt = DateTime.UtcNow;
-            pending.ReviewedByAdminId = admin.Id;
+            // 3. Pending'i sil (artık Product oluşturuldu, geçmişe gerek yok)
+            _context.ProductPendings.Remove(pending);
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();

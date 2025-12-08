@@ -17,7 +17,7 @@ public class WishlistItemResponseDto
     // WishlistItem'den gelen alanlar
     public int WishlistItemId { get; set; }             // Model: WishlistItemId ✅
     public DateTime DateAdded { get; set; }             // Model: DateAdded ✅
-    public decimal PriceAtAddition { get; set; }        // Model: PriceAtAddition ✅
+    public decimal? PriceAtAddition { get; set; }       // Model: PriceAtAddition ✅ (nullable - satıcı yoksa null)
     public string? SelectedVariant { get; set; }        // Model: SelectedVariant ✅
     
     // Product'tan join edilen bilgiler (Model'de yok, controller'da doldurulacak)

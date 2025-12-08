@@ -128,7 +128,28 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .HasOne(ci => ci.SellerProduct)
             .WithMany()
             .HasForeignKey(ci => ci.SellerProductId)
-            .OnDelete(DeleteBehavior.Restrict);  // SellerProduct silinirse sepet öğesi kalır
+            .OnDelete(DeleteBehavior.Cascade);  // ✅ SellerProduct silinince CartItem de silinir
+
+        // CART ITEM → Product (Genel ürün bilgisi)
+        builder.Entity<CartItem>()
+            .HasOne(ci => ci.Product)
+            .WithMany(p => p.CartItems)
+            .HasForeignKey(ci => ci.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);  // Product silinirse CartItem Cascade ile zaten gitmiş olur
+
+        // WISHLIST ITEM → Product
+        builder.Entity<WishlistItem>()
+            .HasOne(wi => wi.Product)
+            .WithMany(p => p.WishlistItems)
+            .HasForeignKey(wi => wi.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);  // Product silinince WishlistItem de silinir
+
+        // WISHLIST ITEM → User
+        builder.Entity<WishlistItem>()
+            .HasOne(wi => wi.AppUser)
+            .WithMany(u => u.WishlistItems)
+            .HasForeignKey(wi => wi.AppUserId)
+            .OnDelete(DeleteBehavior.Cascade);  // User silinince wishlist de silinir
 
         // ORDER ITEM → SellerProduct (Hangi satıcıdan alındı?)
         builder.Entity<OrderItem>()
@@ -160,6 +181,11 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .HasForeignKey(sc => sc.AppliedCouponCode)
             .HasPrincipalKey(c => c.Code)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Product Slug unique index
+        builder.Entity<Product>()
+            .HasIndex(p => p.Slug)
+            .IsUnique();
 
     }
 }

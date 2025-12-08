@@ -151,9 +151,8 @@ public class AdminApproveDto
 
     public string? MetaTitle { get; set; }
     public string? MetaDescription { get; set; }
-
-    public string? AdminNote { get; set; }
 }
+
 public class AdminRejectDto
 {
     public string AdminNote { get; set; } = string.Empty;  // Red sebebi zorunlu
@@ -197,7 +196,7 @@ public class SellerListingUpdateDto
 }
 public class SellerListingResponseDto
 {
-    public int SellerProductId { get; set; }
+    public int ListingId { get; set; }
 
     // Ürün bilgileri
     public int ProductId { get; set; }

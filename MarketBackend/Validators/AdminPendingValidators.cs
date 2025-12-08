@@ -53,11 +53,6 @@ public class AdminApproveDtoValidator : AbstractValidator<AdminApproveDto>
         RuleFor(x => x.MetaDescription)
             .MaximumLength(300).WithMessage("Meta açıklama en fazla 300 karakter olabilir.")
             .When(x => !string.IsNullOrEmpty(x.MetaDescription));
-
-        // AdminNote (opsiyonel)
-        RuleFor(x => x.AdminNote)
-            .MaximumLength(1000).WithMessage("Admin notu en fazla 1000 karakter olabilir.")
-            .When(x => !string.IsNullOrEmpty(x.AdminNote));
     }
 
     private bool BeAValidUrl(string? url)

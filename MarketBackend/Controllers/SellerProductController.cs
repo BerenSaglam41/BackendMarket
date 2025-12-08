@@ -312,7 +312,7 @@ public class SellerProductController : ControllerBase
 
         var response = listings.Select(sp => new SellerListingResponseDto
         {
-            SellerProductId = sp.SellerProductId,
+            ListingId = sp.SellerProductId,
             ProductId = sp.ProductId,
             ProductName = sp.Product.Name,
             ProductSlug = sp.Product.Slug,
@@ -396,7 +396,7 @@ public class SellerProductController : ControllerBase
 
         return CreatedAtAction(nameof(GetMyListings), new { }, new SellerListingResponseDto
         {
-            SellerProductId = listing.SellerProductId,
+            ListingId = listing.SellerProductId,
             ProductId = listing.ProductId,
             ProductName = product.Name,
             ProductSlug = product.Slug,
@@ -553,5 +553,129 @@ public class SellerProductController : ControllerBase
             ReviewedAt = p.ReviewedAt,
             CreatedAt = p.CreatedAt
         };
+    }
+
+    // ==========================================
+    // SELLER ÜRÜN YÖNETİMİ (Onaylanmış Product)
+    // ==========================================
+
+    /// <summary>
+    /// Seller kendi oluşturduğu ürünü pasif/aktif yapabilir
+    /// PUT /api/seller/my-product/{id}/toggle
+    /// </summary>
+    [HttpPut("my-product/{id:int}/toggle")]
+    public async Task<IActionResult> ToggleMyProduct(int id)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
+
+        var product = await _context.Products
+            .FirstOrDefaultAsync(p => p.ProductId == id && p.CreatedBySellerId == user.Id);
+
+        if (product == null)
+            throw new NotFoundException($"ID: {id} olan ürün bulunamadı veya size ait değil.");
+
+        product.IsActive = !product.IsActive;
+        product.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok(new 
+        { 
+            message = product.IsActive ? "Ürün aktif edildi." : "Ürün pasif edildi.",
+            isActive = product.IsActive
+        });
+    }
+
+    /// <summary>
+    /// Seller kendi oluşturduğu ürünleri listeler (Onaylanmış ve yayında)
+    /// GET /api/seller/my-products
+    /// </summary>
+    [HttpGet("my-products")]
+    public async Task<IActionResult> GetMyProducts(
+        [FromQuery] bool? isActive = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
+
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = _context.Products
+            .Include(p => p.Brand)
+            .Include(p => p.Category)
+            .Include(p => p.CreatedBySeller)
+            .Include(p => p.SellerProducts.Where(sp => sp.IsActive))
+                .ThenInclude(sp => sp.Seller)
+            .Where(p => p.CreatedBySellerId == user.Id);
+
+        if (isActive.HasValue)
+            query = query.Where(p => p.IsActive == isActive.Value);
+
+        var totalCount = await query.CountAsync();
+        var products = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var response = products.Select(p => new ProductResponseDto
+        {
+            ProductId = p.ProductId,
+            Name = p.Name,
+            Slug = p.Slug,
+            Description = p.Description,
+            BrandId = p.BrandId,
+            BrandName = p.Brand?.Name,
+            CategoryId = p.CategoryId,
+            CategoryName = p.Category?.Name,
+            ImageUrl = p.ImageUrl,
+            ImageGallery = string.IsNullOrEmpty(p.ImageGalleryJson) ? null : JsonSerializer.Deserialize<List<string>>(p.ImageGalleryJson),
+            MetaTitle = p.MetaTitle,
+            MetaDescription = p.MetaDescription,
+            IsActive = p.IsActive,
+            ReviewCount = p.ReviewCount,
+            CreatedAt = p.CreatedAt,
+            UpdatedAt = p.UpdatedAt,
+            CreatedBySellerId = p.CreatedBySellerId,
+            Store = p.CreatedBySeller != null ? new ProductStoreInfoDto
+            {
+                StoreName = p.CreatedBySeller.StoreName ?? "",
+                StoreSlug = p.CreatedBySeller.StoreSlug ?? "",
+                StoreLogoUrl = p.CreatedBySeller.StoreLogoUrl,
+                IsStoreVerified = p.CreatedBySeller.IsStoreVerified
+            } : null,
+            MinPrice = p.SellerProducts.Any(sp => sp.IsActive) 
+                ? p.SellerProducts.Where(sp => sp.IsActive).Min(sp => sp.UnitPrice) 
+                : null,
+            SellerCount = p.SellerProducts.Count(sp => sp.IsActive),
+            Sellers = p.SellerProducts.Select(sp => new ProductSellerDto
+            {
+                ListingId = sp.SellerProductId,
+                SellerId = sp.SellerId,
+                StoreName = sp.Seller?.StoreName ?? "",
+                StoreSlug = sp.Seller?.StoreSlug ?? "",
+                IsStoreVerified = sp.Seller?.IsStoreVerified ?? false,
+                OriginalPrice = sp.OriginalPrice,
+                DiscountPercentage = sp.DiscountPercentage,
+                UnitPrice = sp.UnitPrice,
+                Stock = sp.Stock,
+                ShippingTimeInDays = sp.ShippingTimeInDays,
+                ShippingCost = sp.ShippingCost
+            }).ToList()
+        });
+
+        return Ok(new
+        {
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            Data = response
+        });
     }
 }

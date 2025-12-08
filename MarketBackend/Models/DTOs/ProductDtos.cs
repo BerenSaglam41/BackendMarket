@@ -46,7 +46,7 @@ public class ProductResponseDto
 /// </summary>
 public class ProductSellerDto
 {
-    public int SellerProductId { get; set; }
+    public int ListingId { get; set; }
     public string SellerId { get; set; } = string.Empty;
     public string StoreName { get; set; } = string.Empty;
     public string StoreSlug { get; set; } = string.Empty;

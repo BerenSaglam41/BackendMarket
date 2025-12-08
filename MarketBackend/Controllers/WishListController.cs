@@ -32,7 +32,7 @@ public class WishListController : ControllerBase
         var wishlistItems = await _context.WishlistItems
             .Include(w => w.Product)
                 .ThenInclude(p => p.Brand)
-            .Include(w => w.Product.SellerProducts.Where(sp => sp.IsActive && sp.Stock > 0))
+            .Include(w => w.Product.SellerProducts)
             .Where(w => w.AppUserId == userId)
             .OrderByDescending(w => w.DateAdded)
             .Select(w => new WishlistItemResponseDto
@@ -48,15 +48,20 @@ public class WishListController : ControllerBase
                 ProductImage = w.Product.ImageUrl,
                 BrandName = w.Product.Brand != null ? w.Product.Brand.Name : null,
 
-                // UnitPrice yerine OriginalPrice - (OriginalPrice * DiscountPercentage / 100) hesapla
-                CurrentMinPrice = w.Product.SellerProducts.Any()
-                    ? w.Product.SellerProducts.Min(sp => sp.OriginalPrice - (sp.OriginalPrice * sp.DiscountPercentage / 100))
+                // Sadece aktif ve stoklu satıcıların minimum fiyatını hesapla
+                CurrentMinPrice = w.Product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0)
+                    ? w.Product.SellerProducts
+                        .Where(sp => sp.IsActive && sp.Stock > 0)
+                        .Min(sp => sp.UnitPrice)
                     : (decimal?)null,
 
-                AvailableSellerCount = w.Product.SellerProducts.Count(),
-                IsAvailable = w.Product.SellerProducts.Any(),
-                PriceChanged = w.Product.SellerProducts.Any() &&
-                              w.Product.SellerProducts.Min(sp => sp.OriginalPrice - (sp.OriginalPrice * sp.DiscountPercentage / 100)) != w.PriceAtAddition
+                AvailableSellerCount = w.Product.SellerProducts.Count(sp => sp.IsActive && sp.Stock > 0),
+                IsAvailable = w.Product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0),
+                PriceChanged = w.PriceAtAddition.HasValue && 
+                              w.Product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0) &&
+                              w.Product.SellerProducts
+                                .Where(sp => sp.IsActive && sp.Stock > 0)
+                                .Min(sp => sp.UnitPrice) != w.PriceAtAddition
             })
             .ToListAsync();
         return Ok(wishlistItems);
@@ -87,10 +92,12 @@ public class WishListController : ControllerBase
         if (existingItem)
             throw new ConflictException("Bu ürün zaten favorilerinizde");
         
-        // Güncel min fiyat (Satıcı yoksa 0, varsa min fiyat)
-        var currentMinPrice = product.SellerProducts.Any()
-            ? product.SellerProducts.Min(s => s.OriginalPrice - (s.OriginalPrice * s.DiscountPercentage / 100))
-            : 0;
+        // Güncel min fiyat (Satıcı yoksa null, varsa min fiyat)
+        var currentMinPrice = product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0)
+            ? product.SellerProducts
+                .Where(sp => sp.IsActive && sp.Stock > 0)
+                .Min(s => s.UnitPrice)
+            : (decimal?)null;
         
         var wishlistItem = new WishlistItem
         {
@@ -105,7 +112,7 @@ public class WishListController : ControllerBase
         await _context.SaveChangesAsync();
         
         // Mesaj satıcı durumuna göre
-        var message = product.SellerProducts.Any()
+        var message = currentMinPrice.HasValue
             ? "Ürün favorilere eklendi"
             : "Ürün favorilere eklendi. Stoğa girdiğinde size bildirim göndereceğiz";
         
@@ -113,7 +120,7 @@ public class WishListController : ControllerBase
         {
             message,
             wishlistItemId = wishlistItem.WishlistItemId,
-            isAvailable = product.SellerProducts.Any()
+            isAvailable = currentMinPrice.HasValue
         });
     }
     // Favorilerden ürün çıkar
