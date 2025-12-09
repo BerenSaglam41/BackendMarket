@@ -29,6 +29,12 @@ public class OrderController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             throw new UnauthorizedException("Giriş yapmalısınız.");
 
+        // Seller'lar sipariş veremez
+        var user = await _userManager.FindByIdAsync(userId);
+        var roles = await _userManager.GetRolesAsync(user!);
+        if (roles.Contains("Seller"))
+            throw new ForbiddenException("Satıcılar sipariş veremez. Lütfen müşteri hesabı ile giriş yapın.");
+
         // Alışveriş sepetini getir
         var cart = await _context.ShoppingCarts
             .Include(c => c.Items.Where(i => i.IsSelectedForCheckout))
@@ -48,14 +54,80 @@ public class OrderController : ControllerBase
             if (item.SellerProduct.Stock < item.Quantity)
                 throw new BadRequestException($"'{item.Product.Name}' ürünü için yeterli stok yok. Mevcut stok: {item.SellerProduct.Stock}");
         }
-        // Adres Kontrol
-        var shipppingAddress = await _context.Addresses.FindAsync(dto.ShippingAddressId);
-        if (shipppingAddress == null || shipppingAddress.AppUserId != userId)
-            throw new BadRequestException("Geçersiz teslimat adresi.");
-        var billingAddressId = dto.BillingAddressId ?? dto.ShippingAddressId;
-        var billingAddress = await _context.Addresses.FindAsync(billingAddressId);
-        if (billingAddress == null || billingAddress.AppUserId != userId)
-            throw new BadRequestException("Geçersiz fatura adresi.");
+        
+        // Adres Kontrol ve Oluşturma
+        Address shippingAddress;
+        Address billingAddress;
+        
+        // Teslimat adresi - Kayıtlı adres VEYA yeni adres
+        if (dto.ShippingAddressId.HasValue)
+        {
+            // Kayıtlı adres kullan
+            shippingAddress = await _context.Addresses.FindAsync(dto.ShippingAddressId.Value);
+            if (shippingAddress == null || shippingAddress.AppUserId != userId)
+                throw new BadRequestException("Geçersiz teslimat adresi.");
+        }
+        else if (dto.ShippingAddress != null)
+        {
+            // Yeni adres oluştur (geçici - sadece sipariş için)
+            shippingAddress = new Address
+            {
+                AppUserId = userId,
+                Title = "Sipariş Teslimat Adresi",
+                ContactName = dto.ShippingAddress.ContactName,
+                ContactPhone = dto.ShippingAddress.ContactPhone,
+                Country = dto.ShippingAddress.Country,
+                City = dto.ShippingAddress.City,
+                District = dto.ShippingAddress.District,
+                Neighborhood = dto.ShippingAddress.Neighborhood,
+                FullAddress = dto.ShippingAddress.FullAddress,
+                PostalCode = dto.ShippingAddress.PostalCode,
+                IsDefault = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Addresses.Add(shippingAddress);
+            await _context.SaveChangesAsync(); // ID almak için kaydet
+        }
+        else
+        {
+            throw new BadRequestException("Teslimat adresi gereklidir.");
+        }
+        
+        // Fatura adresi - BillingAddressId, BillingAddress veya ShippingAddress'i kullan
+        if (dto.BillingAddressId.HasValue)
+        {
+            // Kayıtlı fatura adresi kullan
+            billingAddress = await _context.Addresses.FindAsync(dto.BillingAddressId.Value);
+            if (billingAddress == null || billingAddress.AppUserId != userId)
+                throw new BadRequestException("Geçersiz fatura adresi.");
+        }
+        else if (dto.BillingAddress != null)
+        {
+            // Yeni fatura adresi oluştur
+            billingAddress = new Address
+            {
+                AppUserId = userId,
+                Title = "Sipariş Fatura Adresi",
+                ContactName = dto.BillingAddress.ContactName,
+                ContactPhone = dto.BillingAddress.ContactPhone,
+                Country = dto.BillingAddress.Country,
+                City = dto.BillingAddress.City,
+                District = dto.BillingAddress.District,
+                Neighborhood = dto.BillingAddress.Neighborhood,
+                FullAddress = dto.BillingAddress.FullAddress,
+                PostalCode = dto.BillingAddress.PostalCode,
+                IsDefault = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Addresses.Add(billingAddress);
+            await _context.SaveChangesAsync(); // ID almak için kaydet
+        }
+        else
+        {
+            // Fatura adresi yoksa teslimat adresini kullan
+            billingAddress = shippingAddress;
+        }
+        
         // Fiyat
         decimal subtotal = cart.Items.Sum(i => i.TotalPrice);
         decimal taxAmount = subtotal * 0.20m; // %20 KDV
@@ -92,8 +164,8 @@ public class OrderController : ControllerBase
         {
             OrderNumber = orderNumber,
             AppUserId = userId,
-            ShippingAddressId = dto.ShippingAddressId,
-            BillingAddressId = billingAddressId,
+            ShippingAddressId = shippingAddress.AddressId,
+            BillingAddressId = billingAddress.AddressId,
             OrderSource = "Web",
             CustomerNote = dto.CustomerNote,
             Subtotal = subtotal,
@@ -174,6 +246,7 @@ public class OrderController : ControllerBase
         if (pageSize > 50) pageSize = 50;
         var query = _context.Orders
             .Include(o => o.Items)
+                .ThenInclude(i => i.Product)
             .Include(o => o.ShippingAddress)
             .Include(o => o.BillingAddress)
             .Where(o => o.AppUserId == userId)
@@ -337,6 +410,7 @@ public class OrderController : ControllerBase
 
         var query = _context.Orders
             .Include(o => o.Items)
+                .ThenInclude(i => i.Product)
             .Include(o => o.ShippingAddress)
             .Include(o => o.BillingAddress)
             .Include(o => o.AppUser)
@@ -408,14 +482,29 @@ public class OrderController : ControllerBase
             "Tüm siparişler başarıyla getirildi"
         ));
     }
-    // Siparis durum guncelle
-        [HttpPut("{id:int}/status")]
-    [Authorize(Roles = "Admin")]
+    // Siparis durum guncelle (Seller)
+    [HttpPut("{id:int}/status")]
+    [Authorize(Roles = "Seller")]
     public async Task<IActionResult> UpdateOrderStatus(int id, OrderUpdateStatusDto dto)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var userId = _userManager.GetUserId(User);
+        if (string.IsNullOrEmpty(userId))
+            throw new UnauthorizedException("Giriş yapmalısınız.");
+
+        var order = await _context.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.OrderId == id);
+            
         if (order == null)
             throw new NotFoundException("Sipariş bulunamadı.");
+
+        // Seller sadece kendi ürünlerinin bulunduğu siparişleri güncelleyebilir
+        if (!order.Items.Any(i => i.SellerId == userId))
+            throw new ForbiddenException("Bu siparişi güncelleme yetkiniz yok.");
+
+        // İptal edilmiş siparişin durumu değiştirilemez
+        if (order.OrderStatus == OrderStatus.Cancelled)
+            throw new BadRequestException("İptal edilmiş siparişin durumu değiştirilemez.");
 
         order.OrderStatus = dto.NewStatus;
 
@@ -439,7 +528,7 @@ public class OrderController : ControllerBase
         return Ok(ApiResponse.SuccessResponse("Sipariş durumu başarıyla güncellendi."));
     }
     // Seller siparisleri listele
-[HttpGet("seller")]
+    [HttpGet("seller")]
     [Authorize(Roles = "Seller")]
     public async Task<IActionResult> GetSellerOrders(int page = 1, int pageSize = 20)
     {

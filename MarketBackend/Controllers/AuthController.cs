@@ -149,7 +149,11 @@ public class AuthController : ControllerBase
         if (!updateResult.Succeeded)
             throw new BadRequestException("Kullanıcı bilgileri güncellenemedi.", updateResult.Errors.Select(e => e.Description).ToList());
 
-        // Seller rolü ekle (Customer rolü kalır - hem alıcı hem satıcı olabilir)
+        // Tüm mevcut rolleri kaldır ve sadece Seller rolü ekle
+        var removeResult = await _userManager.RemoveFromRolesAsync(user, roles);
+        if (!removeResult.Succeeded)
+            throw new BadRequestException("Roller kaldırılamadı.", removeResult.Errors.Select(e => e.Description).ToList());
+        
         await _userManager.AddToRoleAsync(user, "Seller");
 
         // Yeni token oluştur (roller değişti)
@@ -205,6 +209,63 @@ public class AuthController : ControllerBase
         return Ok(ApiResponse<MeResponseDto>.SuccessResponse(
             response,
             "Kullanıcı bilgileriniz başarıyla getirildi."
+        ));
+    }
+
+    /// <summary>
+    /// Eski kullanıcıların çoklu rollerini temizle - SADECE ADMIN
+    /// POST /api/auth/cleanup-roles
+    /// </summary>
+    [HttpPost("cleanup-roles")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> CleanupUserRoles()
+    {
+        var allUsers = await _userManager.Users.ToListAsync();
+        int cleanedCount = 0;
+
+        foreach (var user in allUsers)
+        {
+            var userRoles = await _userManager.GetRolesAsync(user);
+            
+            // Eğer birden fazla rol varsa
+            if (userRoles.Count > 1)
+            {
+                // Tüm rolleri al
+                var rolesList = userRoles.ToList();
+                
+                // Hangi rolü tutacağımıza karar ver (öncelik sırasına göre)
+                string primaryRole;
+                if (rolesList.Contains("Admin"))
+                {
+                    primaryRole = "Admin";
+                }
+                else if (rolesList.Contains("Seller"))
+                {
+                    primaryRole = "Seller";
+                }
+                else if (rolesList.Contains("Support"))
+                {
+                    primaryRole = "Support";
+                }
+                else
+                {
+                    primaryRole = "Customer";
+                }
+
+                // Diğer tüm rolleri sil
+                var rolesToRemove = rolesList.Where(r => r != primaryRole).ToList();
+                
+                if (rolesToRemove.Any())
+                {
+                    await _userManager.RemoveFromRolesAsync(user, rolesToRemove);
+                    cleanedCount++;
+                }
+            }
+        }
+
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { CleanedUsersCount = cleanedCount, TotalUsers = allUsers.Count },
+            $"{cleanedCount} kullanıcının rolleri temizlendi."
         ));
     }
 }

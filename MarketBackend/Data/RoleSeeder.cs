@@ -11,9 +11,9 @@ public static class RoleSeeder
         var roles = new List<AppRole>
         {
             new AppRole { Name = "Admin", Description = "Full system access" },
-            new AppRole { Name = "Seller", Description = "Manages assigned brand's products" },
-            new AppRole { Name = "Support", Description = "Handles customer support tasks" },
-            new AppRole { Name = "Customer", Description = "Regular platform user" }
+            new AppRole { Name = "Seller", Description = "Seller - manages products and sales" },
+            new AppRole { Name = "Customer", Description = "Customer - regular platform user" },
+            new AppRole { Name = "Support", Description = "Customer support team" }
         };
         
         foreach(var role in roles)
@@ -46,7 +46,6 @@ public static class RoleSeeder
             if (result.Succeeded)
             {
                 await userManager.AddToRoleAsync(adminUser, "Admin");
-                await userManager.AddToRoleAsync(adminUser, "Customer");
             }
         }
     }

@@ -69,31 +69,37 @@ public class ListingController : ControllerBase
                 sp.Seller.StoreName.ToLower().Contains(term));
         }
 
+        // Get all matching records first (without price filter and sorting)
+        var allListings = await query.ToListAsync();
+        
+        // Apply price filters on computed property (client-side)
+        var filteredListings = allListings.AsEnumerable();
+        
         if (minPrice.HasValue)
         {
-            query = query.Where(sp => sp.UnitPrice >= minPrice.Value);
+            filteredListings = filteredListings.Where(sp => sp.UnitPrice >= minPrice.Value);
         }
 
         if (maxPrice.HasValue)
         {
-            query = query.Where(sp => sp.UnitPrice <= maxPrice.Value);
+            filteredListings = filteredListings.Where(sp => sp.UnitPrice <= maxPrice.Value);
         }
 
-        // Sorting
-        query = sortBy?.ToLower() switch
+        // Sorting (client-side on computed property)
+        filteredListings = sortBy?.ToLower() switch
         {
-            "price_asc" => query.OrderBy(sp => sp.UnitPrice),
-            "price_desc" => query.OrderByDescending(sp => sp.UnitPrice),
-            "discount" => query.OrderByDescending(sp => sp.DiscountPercentage),
-            "newest" => query.OrderByDescending(sp => sp.CreatedAt),
-            _ => query.OrderByDescending(sp => sp.CreatedAt)
+            "price_asc" => filteredListings.OrderBy(sp => sp.UnitPrice),
+            "price_desc" => filteredListings.OrderByDescending(sp => sp.UnitPrice),
+            "discount" => filteredListings.OrderByDescending(sp => sp.DiscountPercentage),
+            "newest" => filteredListings.OrderByDescending(sp => sp.CreatedAt),
+            _ => filteredListings.OrderByDescending(sp => sp.CreatedAt)
         };
 
-        var totalCount = await query.CountAsync();
-        var listings = await query
+        var totalCount = filteredListings.Count();
+        var listings = filteredListings
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .ToListAsync();
+            .ToList();
 
         var listingDtos = listings.Select(sp => new ListingResponseDto
         {
@@ -188,12 +194,15 @@ public class ListingController : ControllerBase
         }
 
         // Get other sellers for the same product
-        var otherSellers = await _context.SellerProducts
+        var otherSellersQuery = await _context.SellerProducts
             .Include(sp => sp.Seller)
             .Where(sp => sp.ProductId == listing.ProductId && 
                          sp.SellerProductId != listing.SellerProductId &&
                          sp.IsActive &&
                          sp.Stock > 0)
+            .ToListAsync();
+        
+        var otherSellers = otherSellersQuery
             .OrderBy(sp => sp.UnitPrice)
             .Select(sp => new SellerComparisonDto
             {
@@ -210,7 +219,7 @@ public class ListingController : ControllerBase
                 ShippingCost = sp.ShippingCost,
                 SellerNote = sp.SellerNote
             })
-            .ToListAsync();
+            .ToList();
 
         // Get similar products (same category, different product)
         var similarProducts = await _context.SellerProducts
@@ -302,9 +311,12 @@ public class ListingController : ControllerBase
             return NotFound(ApiResponse.ErrorResponse("Ürün bulunamadı"));
         }
 
-        var sellers = await _context.SellerProducts
+        var sellersQuery = await _context.SellerProducts
             .Include(sp => sp.Seller)
             .Where(sp => sp.ProductId == productId && sp.IsActive && sp.Stock > 0)
+            .ToListAsync();
+        
+        var sellers = sellersQuery
             .OrderBy(sp => sp.UnitPrice)
             .Select(sp => new SellerComparisonDto
             {
@@ -321,7 +333,7 @@ public class ListingController : ControllerBase
                 ShippingCost = sp.ShippingCost,
                 SellerNote = sp.SellerNote
             })
-            .ToListAsync();
+            .ToList();
 
         var response = new ProductSellerComparisonDto
         {

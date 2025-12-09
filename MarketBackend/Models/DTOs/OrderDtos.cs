@@ -4,11 +4,46 @@ namespace MarketBackend.Models.DTOs;
 
 public class OrderCreateDto
 {
-    public int ShippingAddressId { get; set; }
+    // Kayıtlı adres kullanımı (tercih edilen)
+    public int? ShippingAddressId { get; set; }
     public int? BillingAddressId { get; set; }
+    
+    // YA DA yeni adres bilgileri (adres kaydedilmeden sipariş)
+    public ShippingAddressDto? ShippingAddress { get; set; }
+    public BillingAddressDto? BillingAddress { get; set; }
+    
     public string? CustomerNote { get; set; }
     public string? CouponCode { get; set; }
     public PaymentMethod PaymentMethod { get; set; }
+}
+
+// Shipping Address için minimal bilgiler
+public class ShippingAddressDto
+{
+    public string ContactName { get; set; } = string.Empty;
+    public string ContactPhone { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string District { get; set; } = string.Empty;
+    public string Neighborhood { get; set; } = string.Empty;
+    public string FullAddress { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+}
+
+// Billing Address için minimal bilgiler
+public class BillingAddressDto
+{
+    public string ContactName { get; set; } = string.Empty;
+    public string ContactPhone { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string District { get; set; } = string.Empty;
+    public string Neighborhood { get; set; } = string.Empty;
+    public string FullAddress { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string? TaxOffice { get; set; }
+    public string? TaxNumber { get; set; }
+    public string? CompanyName { get; set; }
 }
 public class OrderItemResponseDto
 {
