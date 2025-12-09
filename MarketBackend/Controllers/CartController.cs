@@ -39,7 +39,7 @@ public class CartController : ControllerBase
             .Include(c => c.Items)
                 .ThenInclude(i => i.Product)
             .Include(c => c.Items)
-                .ThenInclude(i => i.SellerProduct)
+                .ThenInclude(i => i.Listing)
                     .ThenInclude(sp => sp.Seller)
             .FirstOrDefaultAsync(c => c.AppUserId == userId && c.IsActive);
 
@@ -71,13 +71,13 @@ public class CartController : ControllerBase
             ProductId = item.ProductId,
             ProductName = item.Product.Name,
             ProductImage = item.Product.ImageUrl ?? "",
-            ListingId = item.SellerProductId,
-            StoreName = item.SellerProduct.Seller?.StoreName ?? "",
+            ListingId = item.ListingId,
+            StoreName = item.Listing.Seller?.StoreName ?? "",
             UnitPrice = item.UnitPrice,
             Quantity = item.Quantity,
             TotalPrice = item.TotalPrice,
-            AvailableStock = item.SellerProduct.Stock,
-            IsOutOfStock = item.SellerProduct.Stock == 0 || !item.SellerProduct.IsActive,
+            AvailableStock = item.Listing.Stock,
+            IsOutOfStock = item.Listing.Stock == 0 || !item.Listing.IsActive,
             IsSelectedForCheckout = item.IsSelectedForCheckout,
             AppliedCouponCode = item.AppliedCouponCode,
             DiscountApplied = item.DiscountApplied
@@ -112,22 +112,22 @@ public class CartController : ControllerBase
             throw new UnauthorizedException("Giriş yapmanız gerekiyor.");
 
         // SellerProduct kontrolü
-        var sellerProduct = await _context.SellerProducts
+        var listing = await _context.Listings
             .Include(sp => sp.Product)
             .Include(sp => sp.Seller)
-            .FirstOrDefaultAsync(sp => sp.SellerProductId == dto.ListingId);
+            .FirstOrDefaultAsync(sp => sp.ListingId == dto.ListingId);
 
-        if (sellerProduct == null)
+        if (listing == null)
             throw new NotFoundException("Satıcı ürünü bulunamadı.");
 
-        if (!sellerProduct.IsActive)
+        if (!listing.IsActive)
             throw new BadRequestException("Bu ürün satışta değil.");
 
-        if (!sellerProduct.Product.IsActive)
+        if (!listing.Product.IsActive)
             throw new BadRequestException("Bu ürün katalogdan kaldırılmış.");
 
-        if (sellerProduct.Stock < dto.Quantity)
-            throw new BadRequestException($"Yetersiz stok. Mevcut stok: {sellerProduct.Stock}");
+        if (listing.Stock < dto.Quantity)
+            throw new BadRequestException($"Yetersiz stok. Mevcut stok: {listing.Stock}");
 
         // Kullanıcının sepetini bul veya oluştur
         var cart = await _context.ShoppingCarts
@@ -153,7 +153,7 @@ public class CartController : ControllerBase
 
         // Aynı ürün zaten sepette mi?
         var existingItem = cart.Items.FirstOrDefault(i => 
-            i.SellerProductId == dto.ListingId && 
+            i.ListingId == dto.ListingId && 
             i.SelectedVariant == dto.SelectedVariant);
 
         if (existingItem != null)
@@ -161,11 +161,11 @@ public class CartController : ControllerBase
             // Miktarı artır
             var newQuantity = existingItem.Quantity + dto.Quantity;
             
-            if (sellerProduct.Stock < newQuantity)
-                throw new BadRequestException($"Yetersiz stok. Mevcut stok: {sellerProduct.Stock}, Sepetteki: {existingItem.Quantity}");
+            if (listing.Stock < newQuantity)
+                throw new BadRequestException($"Yetersiz stok. Mevcut stok: {listing.Stock}, Sepetteki: {existingItem.Quantity}");
 
             existingItem.Quantity = newQuantity;
-            existingItem.TotalPrice = sellerProduct.UnitPrice * newQuantity;
+            existingItem.TotalPrice = listing.UnitPrice * newQuantity;
             existingItem.UpdatedAt = DateTime.UtcNow;
         }
         else
@@ -174,11 +174,11 @@ public class CartController : ControllerBase
             var cartItem = new CartItem
             {
                 ShoppingCartId = cart.ShoppingCartId,
-                ProductId = sellerProduct.ProductId,
-                SellerProductId = dto.ListingId,
+                ProductId = listing.ProductId,
+                ListingId = dto.ListingId,
                 Quantity = dto.Quantity,
-                UnitPrice = sellerProduct.UnitPrice,
-                TotalPrice = sellerProduct.UnitPrice * dto.Quantity,
+                UnitPrice = listing.UnitPrice,
+                TotalPrice = listing.UnitPrice * dto.Quantity,
                 SelectedVariant = dto.SelectedVariant,
                 IsSelectedForCheckout = true,
                 IsOutOfStock = false,
@@ -210,14 +210,14 @@ public class CartController : ControllerBase
 
         var cartItem = await _context.CartItems
             .Include(ci => ci.ShoppingCart)
-            .Include(ci => ci.SellerProduct)
+            .Include(ci => ci.Listing)
             .FirstOrDefaultAsync(ci => ci.CartItemId == cartItemId && ci.ShoppingCart.AppUserId == userId);
 
         if (cartItem == null)
             throw new NotFoundException("Sepet ürünü bulunamadı.");
 
-        if (cartItem.SellerProduct.Stock < dto.Quantity)
-            throw new BadRequestException($"Yetersiz stok. Mevcut stok: {cartItem.SellerProduct.Stock}");
+        if (cartItem.Listing.Stock < dto.Quantity)
+            throw new BadRequestException($"Yetersiz stok. Mevcut stok: {cartItem.Listing.Stock}");
 
         cartItem.Quantity = dto.Quantity;
         cartItem.TotalPrice = cartItem.UnitPrice * dto.Quantity;

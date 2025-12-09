@@ -39,7 +39,7 @@ public class ListingController : ControllerBase
             return BadRequest(ApiResponse.ErrorResponse("Sayfa numarası ve sayfa boyutu pozitif olmalıdır"));
         }
 
-        var query = _context.SellerProducts
+        var query = _context.Listings
             .Include(sp => sp.Product)
                 .ThenInclude(p => p.Category)
             .Include(sp => sp.Product)
@@ -103,7 +103,7 @@ public class ListingController : ControllerBase
 
         var listingDtos = listings.Select(sp => new ListingResponseDto
         {
-            ListingId = sp.SellerProductId,
+            ListingId = sp.ListingId,
             Slug = sp.Slug,
             ProductId = sp.ProductId,
             ProductName = sp.Product.Name,
@@ -148,23 +148,23 @@ public class ListingController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> GetListingDetail(string slugOrId, [FromQuery] string? userId = null)
     {
-        SellerProduct? listing = null;
+        Listing? listing = null;
 
         // Try to parse as ID first
         if (int.TryParse(slugOrId, out int id))
         {
-            listing = await _context.SellerProducts
+            listing = await _context.Listings
                 .Include(sp => sp.Product)
                     .ThenInclude(p => p.Category)
                 .Include(sp => sp.Product)
                     .ThenInclude(p => p.Brand)
                 .Include(sp => sp.Seller)
-                .FirstOrDefaultAsync(sp => sp.SellerProductId == id && sp.IsActive);
+                .FirstOrDefaultAsync(sp => sp.ListingId == id && sp.IsActive);
         }
         else
         {
             // Try to find by slug
-            listing = await _context.SellerProducts
+            listing = await _context.Listings
                 .Include(sp => sp.Product)
                     .ThenInclude(p => p.Category)
                 .Include(sp => sp.Product)
@@ -184,9 +184,10 @@ public class ListingController : ControllerBase
             var viewHistory = new ProductViewHistory
             {
                 UserId = userId,
-                ProductId = listing.ProductId,
-                ViewedAt = DateTime.UtcNow,
-                ViewDuration = 0, // Will be updated by frontend
+                ListingId = listing.ListingId,
+                FirstViewedAt = DateTime.UtcNow,
+                LastViewedAt = DateTime.UtcNow,
+                ViewCount = 1,
                 Source = "direct"
             };
             _context.ProductViewHistories.Add(viewHistory);
@@ -194,10 +195,10 @@ public class ListingController : ControllerBase
         }
 
         // Get other sellers for the same product
-        var otherSellersQuery = await _context.SellerProducts
+        var otherSellersQuery = await _context.Listings
             .Include(sp => sp.Seller)
             .Where(sp => sp.ProductId == listing.ProductId && 
-                         sp.SellerProductId != listing.SellerProductId &&
+                         sp.ListingId != listing.ListingId &&
                          sp.IsActive &&
                          sp.Stock > 0)
             .ToListAsync();
@@ -206,7 +207,7 @@ public class ListingController : ControllerBase
             .OrderBy(sp => sp.UnitPrice)
             .Select(sp => new SellerComparisonDto
             {
-                ListingId = sp.SellerProductId,
+                ListingId = sp.ListingId,
                 Slug = sp.Slug,
                 SellerId = sp.SellerId,
                 SellerName = sp.Seller.StoreName,
@@ -222,7 +223,7 @@ public class ListingController : ControllerBase
             .ToList();
 
         // Get similar products (same category, different product)
-        var similarProducts = await _context.SellerProducts
+        var similarProducts = await _context.Listings
             .Include(sp => sp.Product)
                 .ThenInclude(p => p.Brand)
             .Include(sp => sp.Seller)
@@ -234,7 +235,7 @@ public class ListingController : ControllerBase
             .Take(8)
             .Select(sp => new ListingResponseDto
             {
-                ListingId = sp.SellerProductId,
+                ListingId = sp.ListingId,
                 Slug = sp.Slug,
                 ProductId = sp.ProductId,
                 ProductName = sp.Product.Name,
@@ -253,7 +254,7 @@ public class ListingController : ControllerBase
         var detailDto = new ListingDetailResponseDto
         {
             // Current Listing
-            ListingId = listing.SellerProductId,
+            ListingId = listing.ListingId,
             Slug = listing.Slug,
             ProductId = listing.ProductId,
             ProductName = listing.Product.Name,
@@ -311,7 +312,7 @@ public class ListingController : ControllerBase
             return NotFound(ApiResponse.ErrorResponse("Ürün bulunamadı"));
         }
 
-        var sellersQuery = await _context.SellerProducts
+        var sellersQuery = await _context.Listings
             .Include(sp => sp.Seller)
             .Where(sp => sp.ProductId == productId && sp.IsActive && sp.Stock > 0)
             .ToListAsync();
@@ -320,7 +321,7 @@ public class ListingController : ControllerBase
             .OrderBy(sp => sp.UnitPrice)
             .Select(sp => new SellerComparisonDto
             {
-                ListingId = sp.SellerProductId,
+                ListingId = sp.ListingId,
                 Slug = sp.Slug,
                 SellerId = sp.SellerId,
                 SellerName = sp.Seller.StoreName,
@@ -366,34 +367,39 @@ public class ListingController : ControllerBase
         // If user is logged in, get recommendations based on view history
         if (!string.IsNullOrEmpty(userId))
         {
-            var viewedProductIds = await _context.ProductViewHistories
+            var viewedListingIds = await _context.ProductViewHistories
                 .Where(vh => vh.UserId == userId)
-                .OrderByDescending(vh => vh.ViewedAt)
+                .OrderByDescending(vh => vh.LastViewedAt)
                 .Take(10)
-                .Select(vh => vh.ProductId)
+                .Select(vh => vh.ListingId)
                 .ToListAsync();
 
-            if (viewedProductIds.Any())
+            if (viewedListingIds.Any())
             {
+                var viewedProducts = await _context.Listings
+                    .Where(l => viewedListingIds.Contains(l.ListingId))
+                    .Select(l => l.ProductId)
+                    .ToListAsync();
+
                 var viewedCategories = await _context.Products
-                    .Where(p => viewedProductIds.Contains(p.ProductId))
+                    .Where(p => viewedProducts.Contains(p.ProductId))
                     .Select(p => p.CategoryId)
                     .Distinct()
                     .ToListAsync();
 
-                recommendations = await _context.SellerProducts
+                recommendations = await _context.Listings
                     .Include(sp => sp.Product)
                         .ThenInclude(p => p.Brand)
                     .Include(sp => sp.Seller)
                     .Where(sp => viewedCategories.Contains(sp.Product.CategoryId) &&
-                                 !viewedProductIds.Contains(sp.ProductId) &&
+                                 !viewedProducts.Contains(sp.ProductId) &&
                                  sp.IsActive &&
                                  sp.Stock > 0)
                     .OrderByDescending(sp => sp.DiscountPercentage)
                     .Take(limit)
                     .Select(sp => new ListingResponseDto
                     {
-                        ListingId = sp.SellerProductId,
+                        ListingId = sp.ListingId,
                         Slug = sp.Slug,
                         ProductId = sp.ProductId,
                         ProductName = sp.Product.Name,
@@ -414,7 +420,7 @@ public class ListingController : ControllerBase
         // If no user-specific recommendations or not enough, get category-based or popular products
         if (recommendations.Count < limit)
         {
-            var query = _context.SellerProducts
+            var query = _context.Listings
                 .Include(sp => sp.Product)
                     .ThenInclude(p => p.Brand)
                 .Include(sp => sp.Seller)
@@ -431,7 +437,7 @@ public class ListingController : ControllerBase
                 .Take(limit - recommendations.Count)
                 .Select(sp => new ListingResponseDto
                 {
-                    ListingId = sp.SellerProductId,
+                    ListingId = sp.ListingId,
                     Slug = sp.Slug,
                     ProductId = sp.ProductId,
                     ProductName = sp.Product.Name,

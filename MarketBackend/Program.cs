@@ -51,7 +51,10 @@ builder.Services.AddValidatorsFromAssemblyContaining<RegisterDtoValidator>();
 // 5) Controllers
 builder.Services.AddControllers();
 
-// 6) JWT
+// 6) Memory Cache (View history için)
+builder.Services.AddMemoryCache();
+
+// 7) JWT
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 

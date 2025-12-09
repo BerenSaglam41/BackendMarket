@@ -12,9 +12,9 @@ public class CartItem
     public int ProductId { get; set; }
     public Product Product { get; set; } = null!;
 
-    // ⭐ Satıcı ilişkisi - Hangi satıcıdan alınıyor?
-    public int SellerProductId { get; set; }
-    public SellerProduct SellerProduct { get; set; } = null!;
+    // ⚭ Satıcı ilişkisi - Hangi satıcıdan alınıyor?
+    public int ListingId { get; set; }
+    public Listing Listing { get; set; } = null!;
 
     public int Quantity { get; set; }                          // Adet
 

@@ -15,7 +15,7 @@ namespace MarketBackend.Migrations
                 table: "CartItems");
 
             migrationBuilder.DropForeignKey(
-                name: "FK_CartItems_SellerProducts_SellerProductId",
+                name: "FK_CartItems_SellerProducts_ListingId",
                 table: "CartItems");
 
             migrationBuilder.AlterColumn<string>(
@@ -57,11 +57,11 @@ namespace MarketBackend.Migrations
                 onDelete: ReferentialAction.Restrict);
 
             migrationBuilder.AddForeignKey(
-                name: "FK_CartItems_SellerProducts_SellerProductId",
+                name: "FK_CartItems_SellerProducts_ListingId",
                 table: "CartItems",
-                column: "SellerProductId",
+                column: "ListingId",
                 principalTable: "SellerProducts",
-                principalColumn: "SellerProductId",
+                principalColumn: "ListingId",
                 onDelete: ReferentialAction.Cascade);
         }
 
@@ -73,7 +73,7 @@ namespace MarketBackend.Migrations
                 table: "CartItems");
 
             migrationBuilder.DropForeignKey(
-                name: "FK_CartItems_SellerProducts_SellerProductId",
+                name: "FK_CartItems_SellerProducts_ListingId",
                 table: "CartItems");
 
             migrationBuilder.DropIndex(
@@ -119,11 +119,11 @@ namespace MarketBackend.Migrations
                 onDelete: ReferentialAction.Cascade);
 
             migrationBuilder.AddForeignKey(
-                name: "FK_CartItems_SellerProducts_SellerProductId",
+                name: "FK_CartItems_SellerProducts_ListingId",
                 table: "CartItems",
-                column: "SellerProductId",
+                column: "ListingId",
                 principalTable: "SellerProducts",
-                principalColumn: "SellerProductId",
+                principalColumn: "ListingId",
                 onDelete: ReferentialAction.Restrict);
         }
     }

@@ -2,9 +2,9 @@ using MarketBackend.Models;
 
 namespace MarketBackend.Models;
 
-public class SellerProduct
+public class Listing
 {
-    public int SellerProductId { get; set; }
+    public int ListingId { get; set; }
 
     // Satıcı
     public required string SellerId { get; set; }

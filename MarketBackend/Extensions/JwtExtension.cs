@@ -29,7 +29,8 @@ namespace MarketBackend.Extensions
                     ValidIssuer = jwtSettings["Issuer"],
                     ValidAudience = jwtSettings["Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ClockSkew = TimeSpan.Zero
+                    ClockSkew = TimeSpan.Zero,
+                    RoleClaimType = System.Security.Claims.ClaimTypes.Role  // Role claim'ini belirt
                 };
             });
 

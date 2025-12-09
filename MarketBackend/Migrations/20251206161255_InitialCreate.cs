@@ -478,7 +478,7 @@ namespace MarketBackend.Migrations
                 name: "SellerProducts",
                 columns: table => new
                 {
-                    SellerProductId = table.Column<int>(type: "INTEGER", nullable: false)
+                    ListingId = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     SellerId = table.Column<string>(type: "TEXT", nullable: false),
                     ProductId = table.Column<int>(type: "INTEGER", nullable: false),
@@ -493,7 +493,7 @@ namespace MarketBackend.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_SellerProducts", x => x.SellerProductId);
+                    table.PrimaryKey("PK_SellerProducts", x => x.ListingId);
                     table.ForeignKey(
                         name: "FK_SellerProducts_AspNetUsers_SellerId",
                         column: x => x.SellerId,
@@ -643,7 +643,7 @@ namespace MarketBackend.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     ShoppingCartId = table.Column<int>(type: "INTEGER", nullable: false),
                     ProductId = table.Column<int>(type: "INTEGER", nullable: false),
-                    SellerProductId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ListingId = table.Column<int>(type: "INTEGER", nullable: false),
                     Quantity = table.Column<int>(type: "INTEGER", nullable: false),
                     DateAdded = table.Column<DateTime>(type: "TEXT", nullable: false),
                     LastUpdated = table.Column<DateTime>(type: "TEXT", nullable: true),
@@ -665,10 +665,10 @@ namespace MarketBackend.Migrations
                         principalColumn: "ProductId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_CartItems_SellerProducts_SellerProductId",
-                        column: x => x.SellerProductId,
+                        name: "FK_CartItems_SellerProducts_ListingId",
+                        column: x => x.ListingId,
                         principalTable: "SellerProducts",
-                        principalColumn: "SellerProductId",
+                        principalColumn: "ListingId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_CartItems_ShoppingCarts_ShoppingCartId",
@@ -686,7 +686,7 @@ namespace MarketBackend.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     OrderId = table.Column<int>(type: "INTEGER", nullable: false),
                     ProductId = table.Column<int>(type: "INTEGER", nullable: false),
-                    SellerProductId = table.Column<int>(type: "INTEGER", nullable: false),
+                    ListingId = table.Column<int>(type: "INTEGER", nullable: false),
                     ProductName = table.Column<string>(type: "TEXT", nullable: false),
                     SellerId = table.Column<string>(type: "TEXT", nullable: false),
                     SellerStoreName = table.Column<string>(type: "TEXT", nullable: false),
@@ -713,10 +713,10 @@ namespace MarketBackend.Migrations
                         principalColumn: "ProductId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_OrderItems_SellerProducts_SellerProductId",
-                        column: x => x.SellerProductId,
+                        name: "FK_OrderItems_SellerProducts_ListingId",
+                        column: x => x.ListingId,
                         principalTable: "SellerProducts",
-                        principalColumn: "SellerProductId",
+                        principalColumn: "ListingId",
                         onDelete: ReferentialAction.Restrict);
                 });
 
@@ -794,9 +794,9 @@ namespace MarketBackend.Migrations
                 column: "ProductId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_CartItems_SellerProductId",
+                name: "IX_CartItems_ListingId",
                 table: "CartItems",
-                column: "SellerProductId");
+                column: "ListingId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CartItems_ShoppingCartId",
@@ -824,9 +824,9 @@ namespace MarketBackend.Migrations
                 column: "ProductId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OrderItems_SellerProductId",
+                name: "IX_OrderItems_ListingId",
                 table: "OrderItems",
-                column: "SellerProductId");
+                column: "ListingId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_AppUserId",

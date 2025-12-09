@@ -36,7 +36,7 @@ public class AppUser : IdentityUser
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
     
     // Seller ilişkileri
-    public ICollection<SellerProduct> SellerProducts { get; set; } = new List<SellerProduct>();
+    public ICollection<Listing> Listings { get; set; } = new List<Listing>();
     public ICollection<ProductPending> ProductPendings { get; set; } = new List<ProductPending>();
     
     // Coupon ilişkileri

@@ -32,7 +32,7 @@ public class WishListController : ControllerBase
         var wishlistItems = await _context.WishlistItems
             .Include(w => w.Product)
                 .ThenInclude(p => p.Brand)
-            .Include(w => w.Product.SellerProducts)
+            .Include(w => w.Product.Listings)
             .Where(w => w.AppUserId == userId)
             .OrderByDescending(w => w.DateAdded)
             .Select(w => new WishlistItemResponseDto
@@ -49,17 +49,17 @@ public class WishListController : ControllerBase
                 BrandName = w.Product.Brand != null ? w.Product.Brand.Name : null,
 
                 // Sadece aktif ve stoklu satıcıların minimum fiyatını hesapla
-                CurrentMinPrice = w.Product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0)
-                    ? w.Product.SellerProducts
+                CurrentMinPrice = w.Product.Listings.Any(sp => sp.IsActive && sp.Stock > 0)
+                    ? w.Product.Listings
                         .Where(sp => sp.IsActive && sp.Stock > 0)
                         .Min(sp => sp.UnitPrice)
                     : (decimal?)null,
 
-                AvailableSellerCount = w.Product.SellerProducts.Count(sp => sp.IsActive && sp.Stock > 0),
-                IsAvailable = w.Product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0),
+                AvailableSellerCount = w.Product.Listings.Count(sp => sp.IsActive && sp.Stock > 0),
+                IsAvailable = w.Product.Listings.Any(sp => sp.IsActive && sp.Stock > 0),
                 PriceChanged = w.PriceAtAddition.HasValue && 
-                              w.Product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0) &&
-                              w.Product.SellerProducts
+                              w.Product.Listings.Any(sp => sp.IsActive && sp.Stock > 0) &&
+                              w.Product.Listings
                                 .Where(sp => sp.IsActive && sp.Stock > 0)
                                 .Min(sp => sp.UnitPrice) != w.PriceAtAddition
             })
@@ -79,7 +79,7 @@ public class WishListController : ControllerBase
 
         // Ürün var mı ve aktif mi?
         var product = await _context.Products
-            .Include(p => p.SellerProducts.Where(sp => sp.IsActive && sp.Stock > 0))
+            .Include(p => p.Listings.Where(sp => sp.IsActive && sp.Stock > 0))
             .FirstOrDefaultAsync(p => p.ProductId == dto.ProductId);
         
         if (product == null)
@@ -96,8 +96,8 @@ public class WishListController : ControllerBase
             throw new ConflictException("Bu ürün zaten favorilerinizde");
         
         // Güncel min fiyat (Satıcı yoksa null, varsa min fiyat)
-        var currentMinPrice = product.SellerProducts.Any(sp => sp.IsActive && sp.Stock > 0)
-            ? product.SellerProducts
+        var currentMinPrice = product.Listings.Any(sp => sp.IsActive && sp.Stock > 0)
+            ? product.Listings
                 .Where(sp => sp.IsActive && sp.Stock > 0)
                 .Min(s => s.UnitPrice)
             : (decimal?)null;

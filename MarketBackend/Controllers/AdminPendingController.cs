@@ -162,8 +162,8 @@ public class AdminPendingController : ControllerBase
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
-            // 2. Seller için SellerProduct oluştur (fiyat/stok burada)
-            var sellerProduct = new SellerProduct
+            // 2. Seller için Listing oluştur (fiyat/stok burada)
+            var listing = new Listing
             {
                 SellerId = pending.SellerId,
                 ProductId = product.ProductId,
@@ -177,7 +177,7 @@ public class AdminPendingController : ControllerBase
                 CreatedAt = DateTime.UtcNow
             };
 
-            _context.SellerProducts.Add(sellerProduct);
+            _context.Listings.Add(listing);
 
             // 3. Pending'i sil (artık Product oluşturuldu, geçmişe gerek yok)
             _context.ProductPendings.Remove(pending);
@@ -188,7 +188,7 @@ public class AdminPendingController : ControllerBase
             var responseData = new 
             {
                 ProductId = product.ProductId,
-                SellerProductId = sellerProduct.SellerProductId,
+                ListingId = listing.ListingId,
                 ProductSlug = product.Slug
             };
             return Ok(ApiResponse<object>.SuccessResponse(

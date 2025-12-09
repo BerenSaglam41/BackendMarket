@@ -6,6 +6,7 @@ using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Models.Common;
 using MarketBackend.Models.DTOs;
+using MarketBackend.Models.Enums;
 using System.Text.Json;
 
 namespace MarketBackend.Controllers;
@@ -303,7 +304,7 @@ public class SellerProductController : ControllerBase
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 100) pageSize = 100;
 
-        var query = _context.SellerProducts
+        var query = _context.Listings
             .Include(sp => sp.Product)
             .Where(sp => sp.SellerId == user.Id);
 
@@ -322,7 +323,7 @@ public class SellerProductController : ControllerBase
 
         var response = listings.Select(sp => new SellerListingResponseDto
         {
-            ListingId = sp.SellerProductId,
+            ListingId = sp.ListingId,
             ProductId = sp.ProductId,
             ProductName = sp.Product.Name,
             ProductSlug = sp.Product.Slug,
@@ -377,16 +378,16 @@ public class SellerProductController : ControllerBase
         }
 
         // Aynı ürünü zaten satıyor mu?
-        var existingListing = await _context.SellerProducts
+        var existingListing = await _context.Listings
             .AnyAsync(sp => sp.SellerId == user.Id && sp.ProductId == dto.ProductId);
 
         if (existingListing)
             throw new ConflictException($"ID '{dto.ProductId}' ürününü zaten satıyorsunuz.");
 
         // Generate unique slug: product-slug-seller-slug (e.g., "iphone-15-pro-techstore")
-        var slug = await GenerateListingSlug(product.Slug, user.StoreSlug);
+        var slug = await GenerateListingSlug(product.Slug, user.StoreSlug ?? "seller");
 
-        var listing = new SellerProduct
+        var listing = new Listing
         {
             SellerId = user.Id,
             ProductId = dto.ProductId,
@@ -401,12 +402,12 @@ public class SellerProductController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.SellerProducts.Add(listing);
+        _context.Listings.Add(listing);
         await _context.SaveChangesAsync();
 
         var responseDto = new SellerListingResponseDto
         {
-            ListingId = listing.SellerProductId,
+            ListingId = listing.ListingId,
             ProductId = listing.ProductId,
             ProductName = product.Name,
             ProductSlug = product.Slug,
@@ -424,7 +425,7 @@ public class SellerProductController : ControllerBase
 
         return CreatedAtAction(
             nameof(GetMyListings), 
-            new { id = listing.SellerProductId }, 
+            new { id = listing.ListingId }, 
             ApiResponse<SellerListingResponseDto>.SuccessResponse(
                 responseDto,
                 "Satış başarıyla oluşturuldu.",
@@ -444,8 +445,8 @@ public class SellerProductController : ControllerBase
         if (user == null)
             throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
-        var listing = await _context.SellerProducts
-            .FirstOrDefaultAsync(sp => sp.SellerProductId == id && sp.SellerId == user.Id);
+        var listing = await _context.Listings
+            .FirstOrDefaultAsync(sp => sp.ListingId == id && sp.SellerId == user.Id);
 
         if (listing == null)
             throw new NotFoundException($"ID '{id}' ile satış bulunamadı.");
@@ -476,13 +477,13 @@ public class SellerProductController : ControllerBase
         if (user == null)
             throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
-        var listing = await _context.SellerProducts
-            .FirstOrDefaultAsync(sp => sp.SellerProductId == id && sp.SellerId == user.Id);
+        var listing = await _context.Listings
+            .FirstOrDefaultAsync(sp => sp.ListingId == id && sp.SellerId == user.Id);
 
         if (listing == null)
             throw new NotFoundException($"ID '{id}' ile satış bulunamadı.");
 
-        _context.SellerProducts.Remove(listing);
+        _context.Listings.Remove(listing);
         await _context.SaveChangesAsync();
 
         return Ok(ApiResponse.SuccessResponse(
@@ -491,11 +492,11 @@ public class SellerProductController : ControllerBase
     }
 
     // ==========================================
-    // DASHBOARD & İSTATİSTİKLER
+    // DASHBOARD
     // ==========================================
 
     /// <summary>
-    /// Seller dashboard özet bilgileri
+    /// Seller dashboard - Basit özet
     /// GET /api/seller/dashboard
     /// </summary>
     [HttpGet("dashboard")]
@@ -505,39 +506,31 @@ public class SellerProductController : ControllerBase
         if (user == null)
             throw new UnauthorizedException("Kullanıcı bulunamadı.");
 
-        // Pending ürün sayıları
-        var pendingCounts = await _context.ProductPendings
-            .Where(p => p.SellerId == user.Id)
-            .GroupBy(p => p.Status)
-            .Select(g => new { Status = g.Key, Count = g.Count() })
-            .ToListAsync();
+        var pendingCount = await _context.ProductPendings
+            .CountAsync(p => p.SellerId == user.Id && p.Status == PendingStatus.Waiting);
 
-        // Aktif satış sayısı
-        var activeListings = await _context.SellerProducts
+        var activeListings = await _context.Listings
             .CountAsync(sp => sp.SellerId == user.Id && sp.IsActive);
 
-        var totalListings = await _context.SellerProducts
-            .CountAsync(sp => sp.SellerId == user.Id);
+        var totalOrders = await _context.OrderItems
+            .Where(oi => oi.SellerId == user.Id)
+            .Select(oi => oi.OrderId)
+            .Distinct()
+            .CountAsync();
 
-        var dashboardData = new
-        {
-            PendingProducts = new
-            {
-                Waiting = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.Waiting)?.Count ?? 0,
-                Approved = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.Approved)?.Count ?? 0,
-                Rejected = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.Rejected)?.Count ?? 0,
-                NeedsUpdate = pendingCounts.FirstOrDefault(c => c.Status == PendingStatus.NeedsUpdate)?.Count ?? 0
-            },
-            Listings = new
-            {
-                Active = activeListings,
-                Total = totalListings
-            }
-        };
+        var totalRevenue = await _context.OrderItems
+            .Where(oi => oi.SellerId == user.Id && oi.Order.PaymentStatus == PaymentStatus.Paid)
+            .SumAsync(oi => oi.TotalPrice);
 
         return Ok(ApiResponse<object>.SuccessResponse(
-            dashboardData,
-            "Dashboard verileri başarıyla getirildi."
+            new
+            {
+                PendingProducts = pendingCount,
+                ActiveListings = activeListings,
+                TotalOrders = totalOrders,
+                TotalRevenue = Math.Round(totalRevenue, 2)
+            },
+            "Dashboard verileri getirildi."
         ));
     }
 
@@ -635,7 +628,7 @@ public class SellerProductController : ControllerBase
         if (pageSize > 100) pageSize = 100;
 
         // Seller'ın kendi satışları (SellerProducts) - listings ile aynı
-        var query = _context.SellerProducts
+        var query = _context.Listings
             .Include(sp => sp.Product)
                 .ThenInclude(p => p.Brand)
             .Include(sp => sp.Product)
@@ -654,7 +647,7 @@ public class SellerProductController : ControllerBase
 
         var response = listings.Select(sp => new SellerListingResponseDto
         {
-            ListingId = sp.SellerProductId,
+            ListingId = sp.ListingId,
             ProductId = sp.ProductId,
             ProductName = sp.Product.Name,
             ProductSlug = sp.Product.Slug,
@@ -691,7 +684,7 @@ public class SellerProductController : ControllerBase
         var counter = 1;
 
         // Check for conflicts and append number if needed
-        while (await _context.SellerProducts.AnyAsync(sp => sp.Slug == slug))
+        while (await _context.Listings.AnyAsync(sp => sp.Slug == slug))
         {
             counter++;
             slug = $"{baseSlug}-{counter}";

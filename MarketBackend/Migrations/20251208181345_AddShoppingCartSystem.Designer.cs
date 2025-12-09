@@ -330,7 +330,7 @@ namespace MarketBackend.Migrations
                     b.Property<string>("SelectedVariant")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("SellerProductId")
+                    b.Property<int>("ListingId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("ShoppingCartId")
@@ -346,7 +346,7 @@ namespace MarketBackend.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.HasIndex("SellerProductId");
+                    b.HasIndex("ListingId");
 
                     b.HasIndex("ShoppingCartId");
 
@@ -642,7 +642,7 @@ namespace MarketBackend.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("SellerProductId")
+                    b.Property<int>("ListingId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("SellerStoreName")
@@ -667,7 +667,7 @@ namespace MarketBackend.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.HasIndex("SellerProductId");
+                    b.HasIndex("ListingId");
 
                     b.ToTable("OrderItems");
                 });
@@ -951,7 +951,7 @@ namespace MarketBackend.Migrations
 
             modelBuilder.Entity("MarketBackend.Models.SellerProduct", b =>
                 {
-                    b.Property<int>("SellerProductId")
+                    b.Property<int>("ListingId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
@@ -986,7 +986,7 @@ namespace MarketBackend.Migrations
                     b.Property<int>("Stock")
                         .HasColumnType("INTEGER");
 
-                    b.HasKey("SellerProductId");
+                    b.HasKey("ListingId");
 
                     b.HasIndex("ProductId");
 
@@ -1291,7 +1291,7 @@ namespace MarketBackend.Migrations
 
                     b.HasOne("MarketBackend.Models.SellerProduct", "SellerProduct")
                         .WithMany()
-                        .HasForeignKey("SellerProductId")
+                        .HasForeignKey("ListingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1393,7 +1393,7 @@ namespace MarketBackend.Migrations
 
                     b.HasOne("MarketBackend.Models.SellerProduct", "SellerProduct")
                         .WithMany()
-                        .HasForeignKey("SellerProductId")
+                        .HasForeignKey("ListingId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

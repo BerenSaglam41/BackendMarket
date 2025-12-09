@@ -21,221 +21,10 @@ public class OrderController : ControllerBase
         _context = context;
         _userManager = userManager;
     }
-    [HttpPost]
-    [Authorize]
-    public async Task<IActionResult> CreateOrder(OrderCreateDto dto)
-    {
-        var userId = _userManager.GetUserId(User);
-        if (string.IsNullOrEmpty(userId))
-            throw new UnauthorizedException("Giriş yapmalısınız.");
-
-        // Seller'lar sipariş veremez
-        var user = await _userManager.FindByIdAsync(userId);
-        var roles = await _userManager.GetRolesAsync(user!);
-        if (roles.Contains("Seller"))
-            throw new ForbiddenException("Satıcılar sipariş veremez. Lütfen müşteri hesabı ile giriş yapın.");
-
-        // Alışveriş sepetini getir
-        var cart = await _context.ShoppingCarts
-            .Include(c => c.Items.Where(i => i.IsSelectedForCheckout))
-                .ThenInclude(i => i.Product)
-            .Include(c => c.Items.Where(i => i.IsSelectedForCheckout))
-                .ThenInclude((i => i.SellerProduct))
-                    .ThenInclude(sp => sp.Seller)
-            .FirstOrDefaultAsync(c => c.AppUserId == userId && c.IsActive);
-        if (cart == null || !cart.Items.Any())
-            throw new BadRequestException("Sepetiniz boş.");
-
-        // stok kontrol
-        foreach (var item in cart.Items)
-        {
-            if (!item.SellerProduct.IsActive)
-                throw new BadRequestException($"'{item.Product.Name}' ürünü satışta değil.");
-            if (item.SellerProduct.Stock < item.Quantity)
-                throw new BadRequestException($"'{item.Product.Name}' ürünü için yeterli stok yok. Mevcut stok: {item.SellerProduct.Stock}");
-        }
-        
-        // Adres Kontrol ve Oluşturma
-        Address shippingAddress;
-        Address billingAddress;
-        
-        // Teslimat adresi - Kayıtlı adres VEYA yeni adres
-        if (dto.ShippingAddressId.HasValue)
-        {
-            // Kayıtlı adres kullan
-            shippingAddress = await _context.Addresses.FindAsync(dto.ShippingAddressId.Value);
-            if (shippingAddress == null || shippingAddress.AppUserId != userId)
-                throw new BadRequestException("Geçersiz teslimat adresi.");
-        }
-        else if (dto.ShippingAddress != null)
-        {
-            // Yeni adres oluştur (geçici - sadece sipariş için)
-            shippingAddress = new Address
-            {
-                AppUserId = userId,
-                Title = "Sipariş Teslimat Adresi",
-                ContactName = dto.ShippingAddress.ContactName,
-                ContactPhone = dto.ShippingAddress.ContactPhone,
-                Country = dto.ShippingAddress.Country,
-                City = dto.ShippingAddress.City,
-                District = dto.ShippingAddress.District,
-                Neighborhood = dto.ShippingAddress.Neighborhood,
-                FullAddress = dto.ShippingAddress.FullAddress,
-                PostalCode = dto.ShippingAddress.PostalCode,
-                IsDefault = false,
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Addresses.Add(shippingAddress);
-            await _context.SaveChangesAsync(); // ID almak için kaydet
-        }
-        else
-        {
-            throw new BadRequestException("Teslimat adresi gereklidir.");
-        }
-        
-        // Fatura adresi - BillingAddressId, BillingAddress veya ShippingAddress'i kullan
-        if (dto.BillingAddressId.HasValue)
-        {
-            // Kayıtlı fatura adresi kullan
-            billingAddress = await _context.Addresses.FindAsync(dto.BillingAddressId.Value);
-            if (billingAddress == null || billingAddress.AppUserId != userId)
-                throw new BadRequestException("Geçersiz fatura adresi.");
-        }
-        else if (dto.BillingAddress != null)
-        {
-            // Yeni fatura adresi oluştur
-            billingAddress = new Address
-            {
-                AppUserId = userId,
-                Title = "Sipariş Fatura Adresi",
-                ContactName = dto.BillingAddress.ContactName,
-                ContactPhone = dto.BillingAddress.ContactPhone,
-                Country = dto.BillingAddress.Country,
-                City = dto.BillingAddress.City,
-                District = dto.BillingAddress.District,
-                Neighborhood = dto.BillingAddress.Neighborhood,
-                FullAddress = dto.BillingAddress.FullAddress,
-                PostalCode = dto.BillingAddress.PostalCode,
-                IsDefault = false,
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Addresses.Add(billingAddress);
-            await _context.SaveChangesAsync(); // ID almak için kaydet
-        }
-        else
-        {
-            // Fatura adresi yoksa teslimat adresini kullan
-            billingAddress = shippingAddress;
-        }
-        
-        // Fiyat
-        decimal subtotal = cart.Items.Sum(i => i.TotalPrice);
-        decimal taxAmount = subtotal * 0.20m; // %20 KDV
-        decimal shippingCost = 30m; // sabit kargo ücreti
-        decimal discountAmount = 0m;
-        // Kupon
-        if (!string.IsNullOrEmpty(dto.CouponCode))
-        {
-            var coupon = await _context.Coupons
-                .FirstOrDefaultAsync(c => c.Code == dto.CouponCode && c.IsActive);
-            
-            if (coupon != null && 
-                coupon.ValidFrom <= DateTime.UtcNow && 
-                coupon.ValidUntil >= DateTime.UtcNow && 
-                (!coupon.MaxUsageCount.HasValue || coupon.CurrentUsageCount < coupon.MaxUsageCount.Value))
-            {
-                // Minimum tutar kontrolü
-                if (subtotal >= coupon.MinimumPurchaseAmount)
-                {
-                    // Yüzde indirim hesapla
-                    discountAmount = subtotal * (coupon.DiscountPercentage / 100m);
-                    
-                    // Kupon kullanım sayısını artır
-                    coupon.CurrentUsageCount++;
-                }
-            }
-        }
-        decimal totalAmount = subtotal + taxAmount + shippingCost - discountAmount;
-        // ORder number
-        var random = new Random();
-        var orderNumber = $"MKT-{DateTime.UtcNow:yyyyMMdd}-{random.Next(1000, 9999)}";
-        // 6. Order oluştur
-        var order = new Order
-        {
-            OrderNumber = orderNumber,
-            AppUserId = userId,
-            ShippingAddressId = shippingAddress.AddressId,
-            BillingAddressId = billingAddress.AddressId,
-            OrderSource = "Web",
-            CustomerNote = dto.CustomerNote,
-            Subtotal = subtotal,
-            TaxAmount = taxAmount,
-            DiscountAmount = discountAmount,
-            ShippingCost = shippingCost,
-            TotalAmount = totalAmount,
-            PaymentMethod = dto.PaymentMethod,
-            PaymentStatus = PaymentStatus.Pending,
-            OrderStatus = OrderStatus.AwaitingPayment,
-            CreatedAt = DateTime.UtcNow
-        };
-        _context.Orders.Add(order);
-        await _context.SaveChangesAsync();
-        // 7. OrderItem'ları oluştur
-        foreach (var cartItem in cart.Items)
-        {
-            var orderItem = new OrderItem
-            {
-                OrderId = order.OrderId,
-                ProductId = cartItem.ProductId,
-                SellerProductId = cartItem.SellerProductId,
-                ProductName = cartItem.Product.Name,
-                SellerId = cartItem.SellerProduct.SellerId,
-                SellerStoreName = cartItem.SellerProduct.Seller?.StoreName ?? "",
-                Quantity = cartItem.Quantity,
-                UnitPrice = cartItem.UnitPrice,
-                DiscountApplied = cartItem.DiscountApplied,
-                TaxRate = 0.20m,
-                TotalPrice = cartItem.TotalPrice
-            };
-
-            _context.OrderItems.Add(orderItem);
-
-            // Stok düş
-            cartItem.SellerProduct.Stock -= cartItem.Quantity;
-        }
-
-        // 8. Sepeti temizle - eski item'ları sil ve yeni aktif sepet oluştur
-        _context.CartItems.RemoveRange(cart.Items);
-        cart.IsActive = false;
-        
-        // Yeni boş aktif sepet oluştur
-        var newCart = new ShoppingCart
-        {
-            AppUserId = userId,
-            IsActive = true,
-            LastAccessed = DateTime.UtcNow
-        };
-        _context.ShoppingCarts.Add(newCart);
-
-        await _context.SaveChangesAsync();
-
-        var responseData = new
-        {
-            OrderId = order.OrderId,
-            OrderNumber = order.OrderNumber,
-            TotalAmount = totalAmount,
-            OrderStatus = order.OrderStatus.ToString(),
-            PaymentStatus = order.PaymentStatus.ToString()
-        };
-
-        return CreatedAtAction(
-            nameof(GetOrderById), 
-            new { id = order.OrderId }, 
-            ApiResponse<object>.SuccessResponse(responseData, "Sipariş başarıyla oluşturuldu.", 201)
-        );
-    }
+    
     // Siparisleri listele
     [HttpGet]
+    [Authorize]
     public async Task<IActionResult> GetMyOrders(int page = 1, int pageSize = 10)
     {
         var userId = _userManager.GetUserId(User);
@@ -280,7 +69,7 @@ public class OrderController : ControllerBase
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
                 ProductImage = i.Product?.ImageUrl ?? "",
-                ListingId = i.SellerProductId,
+                ListingId = i.ListingId,
                 SellerStoreName = i.SellerStoreName,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
@@ -347,7 +136,7 @@ public class OrderController : ControllerBase
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
                 ProductImage = i.Product?.ImageUrl ?? "",
-                ListingId = i.SellerProductId,
+                ListingId = i.ListingId,
                 SellerStoreName = i.SellerStoreName,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
@@ -374,7 +163,7 @@ public class OrderController : ControllerBase
 
         var order = await _context.Orders
             .Include(o => o.Items)
-                .ThenInclude(i => i.SellerProduct)
+                .ThenInclude(i => i.Listing)
             .FirstOrDefaultAsync(o => o.OrderId == id);
 
         if (order == null)
@@ -389,7 +178,7 @@ public class OrderController : ControllerBase
         // Stokları geri ekle
         foreach (var item in order.Items)
         {
-            item.SellerProduct.Stock += item.Quantity;
+            item.Listing.Stock += item.Quantity;
         }
 
         order.OrderStatus = OrderStatus.Cancelled;
@@ -459,7 +248,7 @@ public class OrderController : ControllerBase
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
                 ProductImage = i.Product?.ImageUrl ?? "",
-                ListingId = i.SellerProductId,
+                ListingId = i.ListingId,
                 SellerStoreName = i.SellerStoreName,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
@@ -578,7 +367,7 @@ public class OrderController : ControllerBase
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
                 ProductImage = i.Product?.ImageUrl ?? "",
-                ListingId = i.SellerProductId,
+                ListingId = i.ListingId,
                 SellerStoreName = i.SellerStoreName,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,

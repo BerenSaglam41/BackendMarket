@@ -45,7 +45,7 @@ public class ProductController : ControllerBase
             .Include(p => p.Brand)
             .Include(p => p.Category)
             .Include(p => p.CreatedBySeller)
-            .Include(p => p.SellerProducts.Where(sp => sp.IsActive))
+            .Include(p => p.Listings.Where(sp => sp.IsActive))
             .Where(p => p.IsActive)
             .AsQueryable();
         
@@ -94,7 +94,7 @@ public class ProductController : ControllerBase
             .Include(p => p.Brand)
             .Include(p => p.Category)
             .Include(p => p.CreatedBySeller)
-            .Include(p => p.SellerProducts.Where(sp => sp.IsActive))
+            .Include(p => p.Listings.Where(sp => sp.IsActive))
                 .ThenInclude(sp => sp.Seller)
             .FirstOrDefaultAsync(p => p.Slug == slug && p.IsActive);
         
@@ -213,11 +213,11 @@ public class ProductController : ControllerBase
         // Ürün pasif yapılırsa tüm satış ilanlarını da pasif yap
         if (product.IsActive && !dto.IsActive)
         {
-            var sellerProducts = await _context.SellerProducts
+            var listings = await _context.Listings
                 .Where(sp => sp.ProductId == id)
                 .ToListAsync();
             
-            foreach (var sp in sellerProducts)
+            foreach (var sp in listings)
             {
                 sp.IsActive = false;
             }
@@ -239,7 +239,7 @@ public class ProductController : ControllerBase
     public async Task<IActionResult> Delete(int id)
     {
         var product = await _context.Products
-            .Include(p => p.SellerProducts)
+            .Include(p => p.Listings)
             .Include(p => p.Reviews)
             .Include(p => p.WishlistItems)
             .FirstOrDefaultAsync(p => p.ProductId == id);
@@ -248,7 +248,7 @@ public class ProductController : ControllerBase
             throw new NotFoundException($"ID: {id} olan ürün bulunamadı.");
 
         // Aktif satış kontrolü
-        var activeListings = product.SellerProducts.Count(sp => sp.IsActive);
+        var activeListings = product.Listings.Count(sp => sp.IsActive);
         if (activeListings > 0)
             throw new BadRequestException(
                 $"Bu ürünü aktif olarak satan {activeListings} satıcı var. Önce satışları kapatın.",
@@ -278,7 +278,7 @@ public class ProductController : ControllerBase
     /// </summary>
     private ProductResponseDto ToListDto(Product p)
     {
-        var activeSellers = p.SellerProducts?.Where(sp => sp.IsActive).ToList() ?? new List<SellerProduct>();
+        var activeSellers = p.Listings?.Where(sp => sp.IsActive).ToList() ?? new List<Listing>();
         
         return new ProductResponseDto
         {
@@ -329,12 +329,12 @@ public class ProductController : ControllerBase
         var dto = ToListDto(p);
         
         // Satıcıları ekle
-        dto.Sellers = p.SellerProducts?
+        dto.Sellers = p.Listings?
             .Where(sp => sp.IsActive)
             .OrderBy(sp => sp.UnitPrice)
             .Select(sp => new ProductSellerDto
             {
-                ListingId = sp.SellerProductId,
+                ListingId = sp.ListingId,
                 SellerId = sp.SellerId,
                 StoreName = sp.Seller?.StoreName ?? "",
                 StoreSlug = sp.Seller?.StoreSlug ?? "",

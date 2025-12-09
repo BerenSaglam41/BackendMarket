@@ -12,9 +12,9 @@ public class OrderItem
     public int ProductId { get; set; }
     public Product Product { get; set; } = null!;
 
-    // ⭐ Satıcı ilişkisi - Hangi satıcıdan alındı?
-    public int SellerProductId { get; set; }
-    public SellerProduct SellerProduct { get; set; } = null!;
+    // ⚭ Satıcı ilişkisi - Hangi satıcıdan alındı?
+    public int ListingId { get; set; }
+    public Listing Listing { get; set; } = null!;
 
     // Ürün bilgisi (sipariş anındaki snapshot)
     public string ProductName { get; set; } = string.Empty;    // Ürün adı o an nasılsa öyle kalır

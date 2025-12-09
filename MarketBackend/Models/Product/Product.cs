@@ -33,7 +33,7 @@ public class Product
     public bool IsActive { get; set; } = true;
     
     // Seller ilişkileri
-    public ICollection<SellerProduct> SellerProducts { get; set; } = new List<SellerProduct>();
+    public ICollection<Listing> Listings { get; set; } = new List<Listing>();
 
     // İstatistikler (opsiyonel ama faydalı)
     public int ReviewCount { get; set; }

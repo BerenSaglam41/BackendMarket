@@ -4,19 +4,20 @@ public class ProductViewHistory
 {
     public int ProductViewHistoryId { get; set; }
 
-    // Kullanıcı (anonim kullanıcılar için null olabilir)
+    // Kullanıcı (misafir kullanıcılar için null)
     public string? UserId { get; set; }
     public AppUser? User { get; set; }
 
-    // Session ID (giriş yapmamış kullanıcılar için)
-    public string? SessionId { get; set; }
+    // Görüntülenen listing
+    public int ListingId { get; set; }
+    public Listing Listing { get; set; } = null!;
 
-    // Görüntülenen ürün
-    public int ProductId { get; set; }
-    public Product Product { get; set; } = null!;
+    // View istatistikleri
+    public int ViewCount { get; set; } = 1;
+    public DateTime FirstViewedAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastViewedAt { get; set; } = DateTime.UtcNow;
 
-    // İstatistik bilgileri
-    public DateTime ViewedAt { get; set; } = DateTime.UtcNow;
-    public int ViewDuration { get; set; } = 0; // Saniye cinsinden sayfada kalma süresi
-    public string? Source { get; set; } // "search", "category", "recommendation", "direct"
+    // Ek bilgiler
+    public string? Source { get; set; } // "search", "category", "home", "related", "direct"
+    public string? DeviceType { get; set; } // "mobile", "tablet", "desktop"
 }

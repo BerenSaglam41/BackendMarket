@@ -14,7 +14,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
     // MODELLERİN TABLOLARI
     public DbSet<Product> Products { get; set; }
     public DbSet<ProductPending> ProductPendings { get; set; }
-    public DbSet<SellerProduct> SellerProducts { get; set; }
+    public DbSet<Listing> Listings { get; set; }
     public DbSet<ProductViewHistory> ProductViewHistories { get; set; }
 
     public DbSet<Category> Categories { get; set; }
@@ -35,6 +35,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
 
     public DbSet<Invoice> Invoices { get; set; }
     public DbSet<PaymentTransaction> PaymentTransactions { get; set; }
+    public DbSet<Models.Payment.Payment> Payments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -83,16 +84,16 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .OnDelete(DeleteBehavior.Restrict);
 
         // SELLER PRODUCT → AppUser (Seller)
-        builder.Entity<SellerProduct>()
+        builder.Entity<Listing>()
             .HasOne(sp => sp.Seller)
-            .WithMany(u => u.SellerProducts)
+            .WithMany(u => u.Listings)
             .HasForeignKey(sp => sp.SellerId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // SELLER PRODUCT → Product
-        builder.Entity<SellerProduct>()
+        builder.Entity<Listing>()
             .HasOne(sp => sp.Product)
-            .WithMany(p => p.SellerProducts)
+            .WithMany(p => p.Listings)
             .HasForeignKey(sp => sp.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -124,12 +125,12 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .HasForeignKey(p => p.CreatedBySellerId)
             .OnDelete(DeleteBehavior.SetNull);  // Seller silinirse ürün kalır ama sahipsiz olur
 
-        // CART ITEM → SellerProduct (Hangi satıcıdan alınıyor?)
+        // CART ITEM -> Listing (Hangi satıcıdan alınıyor?)
         builder.Entity<CartItem>()
-            .HasOne(ci => ci.SellerProduct)
+            .HasOne(ci => ci.Listing)
             .WithMany()
-            .HasForeignKey(ci => ci.SellerProductId)
-            .OnDelete(DeleteBehavior.Cascade);  // ✅ SellerProduct silinince CartItem de silinir
+            .HasForeignKey(ci => ci.ListingId)
+            .OnDelete(DeleteBehavior.Cascade);  // ✅ Listing silinince CartItem de silinir
 
         // CART ITEM → Product (Genel ürün bilgisi)
         builder.Entity<CartItem>()
@@ -152,12 +153,12 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .HasForeignKey(wi => wi.AppUserId)
             .OnDelete(DeleteBehavior.Cascade);  // User silinince wishlist de silinir
 
-        // ORDER ITEM → SellerProduct (Hangi satıcıdan alındı?)
+        // ORDER ITEM -> Listing (Hangi satıcıdan alındı?)
         builder.Entity<OrderItem>()
-            .HasOne(oi => oi.SellerProduct)
+            .HasOne(oi => oi.Listing)
             .WithMany()
-            .HasForeignKey(oi => oi.SellerProductId)
-            .OnDelete(DeleteBehavior.Restrict);  // SellerProduct silinirse sipariş kaydı kalır
+            .HasForeignKey(oi => oi.ListingId)
+            .OnDelete(DeleteBehavior.Restrict);  // Listing silinirse sipariş kaydı kalır
 
         // Coupon relationships
         builder.Entity<Coupon>()
@@ -193,6 +194,18 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
         builder.Entity<Product>()
             .HasIndex(p => p.Slug)
             .IsUnique();
+
+        // ProductViewHistory - Her kullanıcı-listing kombinasyonu için tek kayıt
+        builder.Entity<ProductViewHistory>()
+            .HasIndex(pvh => new { pvh.UserId, pvh.ListingId })
+            .IsUnique();
+
+        // ProductViewHistory - Listing relationship
+        builder.Entity<ProductViewHistory>()
+            .HasOne(pvh => pvh.Listing)
+            .WithMany()
+            .HasForeignKey(pvh => pvh.ListingId)
+            .OnDelete(DeleteBehavior.Cascade);
 
     }
 }
