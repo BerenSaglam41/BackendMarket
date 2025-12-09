@@ -15,6 +15,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<Product> Products { get; set; }
     public DbSet<ProductPending> ProductPendings { get; set; }
     public DbSet<SellerProduct> SellerProducts { get; set; }
+    public DbSet<ProductViewHistory> ProductViewHistories { get; set; }
 
     public DbSet<Category> Categories { get; set; }
     public DbSet<Brand> Brands { get; set; }

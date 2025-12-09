@@ -29,28 +29,11 @@ public class BrandController : ControllerBase
             .Where(b => b.IsActive)
             .OrderBy(b => b.PriorityRank)
             .ToListAsync();
-
-        var response = brands.Select(b => new BrandResponseDto
-        {
-            BrandId = b.BrandId,
-            Name = b.Name,
-            Slug = b.Slug,
-            LogoUrl = b.LogoUrl,
-            Description = b.Description,
-            WebsiteUrl = b.WebsiteUrl,
-            IsActive = b.IsActive,
-            IsFeatured = b.IsFeatured,
-            MetaTitle = b.MetaTitle,
-            MetaDescription = b.MetaDescription,
-            Country = b.Country,
-            EstablishedYear = b.EstablishedYear,
-            SupportEmail = b.SupportEmail,
-            SupportPhone = b.SupportPhone,
-            PriorityRank = b.PriorityRank,
-            CreatedAt = b.CreatedAt
-        });
-
-        return Ok(response);
+        var brandDtos = brands.Select(b => ToBrandDto(b)).ToList();
+        return Ok(ApiResponse<List<BrandResponseDto>>.SuccessResponse(
+            brandDtos,
+            "Markalar başarıyla getirildi."
+        ));
     }
 
     // Slug ile Marka Getir
@@ -64,25 +47,12 @@ public class BrandController : ControllerBase
         if(brand == null)
             throw new NotFoundException($"'{slug}' slug'ına sahip marka bulunamadı.");
         
-        return Ok(new BrandResponseDto
-        {
-            BrandId = brand.BrandId,
-            Name = brand.Name,
-            Slug = brand.Slug,
-            LogoUrl = brand.LogoUrl,
-            Description = brand.Description,
-            WebsiteUrl = brand.WebsiteUrl,
-            IsActive = brand.IsActive,
-            IsFeatured = brand.IsFeatured,
-            MetaTitle = brand.MetaTitle,
-            MetaDescription = brand.MetaDescription,
-            Country = brand.Country,
-            EstablishedYear = brand.EstablishedYear,
-            SupportEmail = brand.SupportEmail,
-            SupportPhone = brand.SupportPhone,
-            PriorityRank = brand.PriorityRank,
-            CreatedAt = brand.CreatedAt 
-        });
+        var brandDto = ToBrandDto(brand);
+        return Ok(ApiResponse<BrandResponseDto>.SuccessResponse(
+            brandDto,
+            "Marka başarıyla getirildi."
+        
+        ));
     }
     // Admin Marka Olustur
     [HttpPost]
@@ -116,30 +86,15 @@ public class BrandController : ControllerBase
         };
         _context.Brands.Add(brand);
         await _context.SaveChangesAsync();
-        var response = new BrandResponseDto
-            {
-                BrandId = brand.BrandId,
-                Name = brand.Name,
-                Slug = brand.Slug,
-                LogoUrl = brand.LogoUrl,
-                Description = brand.Description,
-                WebsiteUrl = brand.WebsiteUrl,
-                IsActive = brand.IsActive,
-                IsFeatured = brand.IsFeatured,
-                MetaTitle = brand.MetaTitle,
-                MetaDescription = brand.MetaDescription,
-                Country = brand.Country,
-                EstablishedYear = brand.EstablishedYear,
-                SupportEmail = brand.SupportEmail,
-                SupportPhone = brand.SupportPhone,
-                PriorityRank = brand.PriorityRank,
-                CreatedAt = brand.CreatedAt
-            };
-        return CreatedAtAction
-        (
-            nameof(GetBySlug), 
-            new { slug = brand.Slug }, 
-            response
+        var response = ToBrandDto(brand);
+        return CreatedAtAction(
+            nameof(GetBySlug),
+            new { slug=brand.Slug },
+            ApiResponse<BrandResponseDto>.SuccessResponse(
+                response,
+                "Marka başarıyla oluşturuldu.",
+                201
+            )
         );
     }
     // Marka Guncelle
@@ -173,7 +128,9 @@ public class BrandController : ControllerBase
         brand.UpdatedAt = DateTime.UtcNow;
         
         await _context.SaveChangesAsync();
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Marka başarıyla güncellendi."
+        ));
     }
     // Marka Sil
     [HttpDelete("{id:int}")]
@@ -191,6 +148,30 @@ public class BrandController : ControllerBase
 
         _context.Brands.Remove(brand);
         await _context.SaveChangesAsync();
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Marka başarıyla silindi."
+        ));
+    }
+        private static BrandResponseDto ToBrandDto(Brand b)
+    {
+        return new BrandResponseDto
+        {
+            BrandId = b.BrandId,
+            Name = b.Name,
+            Slug = b.Slug,
+            LogoUrl = b.LogoUrl,
+            Description = b.Description,
+            WebsiteUrl = b.WebsiteUrl,
+            IsActive = b.IsActive,
+            IsFeatured = b.IsFeatured,
+            MetaTitle = b.MetaTitle,
+            MetaDescription = b.MetaDescription,
+            Country = b.Country,
+            EstablishedYear = b.EstablishedYear,
+            SupportEmail = b.SupportEmail,
+            SupportPhone = b.SupportPhone,
+            PriorityRank = b.PriorityRank,
+            CreatedAt = b.CreatedAt
+        };
     }
 }

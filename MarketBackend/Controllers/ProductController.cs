@@ -23,11 +23,11 @@ public class ProductController : ControllerBase
     }
     
     /// <summary>
-    /// Tüm aktif ürünleri listele (en düşük fiyatla birlikte)
+    /// Tüm aktif ürünleri listele (en düşük fiyatla birlikte) - SADECE ADMIN VE SELLER
     /// GET /api/Product
     /// </summary>
     [HttpGet]
-    [AllowAnonymous]
+    [Authorize(Roles = "Admin,Seller")]
     public async Task<IActionResult> GetAll(
         [FromQuery] int? brandId = null,
         [FromQuery] int? categoryId = null,
@@ -71,25 +71,23 @@ public class ProductController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
         
-        return Ok(new
-        {
-            Data = products.Select(p => ToListDto(p)),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-            }
-        });
+        var productDtos = products.Select(p => ToListDto(p)).ToList();
+        
+        return Ok(PagedApiResponse<List<ProductResponseDto>>.SuccessResponse(
+            productDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Ürünler başarıyla getirildi"
+        ));
     }
     
     /// <summary>
     /// Ürün detayı - Tüm satıcılarla birlikte
-    /// GET /api/Product/{slug}
+    /// GET /api/Product/{slug} - SADECE ADMIN VE SELLER
     /// </summary>
     [HttpGet("{slug}")]
-    [AllowAnonymous]
+    [Authorize(Roles = "Admin,Seller")]
     public async Task<IActionResult> GetBySlug(string slug)
     {
         var product = await _context.Products
@@ -103,7 +101,8 @@ public class ProductController : ControllerBase
         if (product == null)
             throw new NotFoundException($"'{slug}' slug'ına sahip ürün bulunamadı.");
 
-        return Ok(ToDetailDto(product));
+        var productDto = ToDetailDto(product);
+        return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(productDto, "Ürün detayı başarıyla getirildi"));
     }
     
     /// <summary>
@@ -158,7 +157,12 @@ public class ProductController : ControllerBase
         await _context.Entry(product).Reference(p => p.Brand).LoadAsync();
         await _context.Entry(product).Reference(p => p.Category).LoadAsync();
         
-        return CreatedAtAction(nameof(GetBySlug), new { slug = product.Slug }, ToListDto(product));
+        var productDto = ToListDto(product);
+        return CreatedAtAction(
+            nameof(GetBySlug), 
+            new { slug = product.Slug }, 
+            ApiResponse<ProductResponseDto>.SuccessResponse(productDto, "Ürün başarıyla oluşturuldu", 201)
+        );
     }
     
     /// <summary>
@@ -223,7 +227,7 @@ public class ProductController : ControllerBase
         product.UpdatedAt = DateTime.UtcNow;
         
         await _context.SaveChangesAsync();
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse("Ürün başarıyla güncellendi"));
     }
     
     /// <summary>
@@ -262,7 +266,7 @@ public class ProductController : ControllerBase
         
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse("Ürün başarıyla silindi"));
     }
     
     // ==========================================

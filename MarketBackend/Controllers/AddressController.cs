@@ -57,7 +57,10 @@ public class AddressController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(addresses);
+        return Ok(ApiResponse<List<AddressResponseDto>>.SuccessResponse(
+            addresses,
+            "Adresler başarıyla getirildi"
+        ));
     }
 
     /// <summary>
@@ -95,7 +98,10 @@ public class AddressController : ControllerBase
         if (address == null)
             throw new NotFoundException("Adres bulunamadı veya size ait değil");
 
-        return Ok(address);
+        return Ok(ApiResponse<AddressResponseDto>.SuccessResponse(
+            address,
+            "Adres başarıyla getirildi"
+        ));
     }
 
     /// <summary>
@@ -160,7 +166,12 @@ public class AddressController : ControllerBase
             UpdatedAt = newAddress.UpdatedAt
         };
 
-        return CreatedAtAction(nameof(GetAddressById), new { id = newAddress.AddressId }, response);
+        return CreatedAtAction(nameof(GetAddressById), new { id = newAddress.AddressId }, 
+            ApiResponse<AddressResponseDto>.SuccessResponse(
+                response,
+                "Adres başarıyla oluşturuldu",
+                201
+            ));
     }
 
     /// <summary>
@@ -204,25 +215,9 @@ public class AddressController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        var response = new AddressResponseDto
-        {
-            AddressId = address.AddressId,
-            Title = address.Title,
-            ContactName = address.ContactName,
-            ContactPhone = address.ContactPhone,
-            Country = address.Country,
-            City = address.City,
-            District = address.District,
-            Neighborhood = address.Neighborhood,
-            FullAddress = address.FullAddress,
-            PostalCode = address.PostalCode,
-            AddressType = address.AddressType,
-            IsDefault = address.IsDefault,
-            CreatedAt = address.CreatedAt,
-            UpdatedAt = address.UpdatedAt
-        };
-
-        return Ok(response);
+        return Ok(ApiResponse.SuccessResponse(
+            "Adres başarıyla güncellendi"
+        ));
     }
 
     /// <summary>
@@ -262,7 +257,9 @@ public class AddressController : ControllerBase
             }
         }
 
-        return Ok(new { message = "Adres başarıyla silindi" });
+        return Ok(ApiResponse.SuccessResponse(
+            "Adres başarıyla silindi"
+        ));
     }
 
     /// <summary>
@@ -289,6 +286,8 @@ public class AddressController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Varsayılan adres güncellendi" });
+        return Ok(ApiResponse.SuccessResponse(
+            "Varsayılan adres güncellendi"
+        ));
     }
 }

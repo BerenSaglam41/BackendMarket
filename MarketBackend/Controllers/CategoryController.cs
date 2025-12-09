@@ -28,22 +28,12 @@ public class CategoryController : ControllerBase
             .OrderBy(c => c.OrderIndex)
             .ToListAsync();
         
-        var result = categories.Select(c => new CategoryResponseDto
-        {
-            CategoryId = c.CategoryId,
-            Name = c.Name,
-            Slug = c.Slug,
-            ParentCategoryId = c.ParentCategoryId,
-            Description = c.Description,
-            ImageUrl = c.ImageUrl,
-            OrderIndex = c.OrderIndex,
-            IsActive = c.IsActive,
-            MetaTitle = c.MetaTitle,
-            MetaDescription = c.MetaDescription,
-            CreatedAt = c.CreatedAt
-        }).ToList();
+        var result = categories.Select(c => ToCategoryDto(c)).ToList();
+        return Ok(ApiResponse<List<CategoryResponseDto>>.SuccessResponse(
+            result,
+            "Kategoriler başarıyla getirildi."
+        ));
 
-        return Ok(result);
     }
     // 🔹 PUBLIC: Slug ile tek kategori getir
     [HttpGet("{slug}")]
@@ -56,21 +46,11 @@ public class CategoryController : ControllerBase
         if(category == null)
             throw new NotFoundException($"'{slug}' slug'ına sahip kategori bulunamadı.");
         
-        var dto = new CategoryResponseDto
-        {
-            CategoryId = category.CategoryId,
-            Name = category.Name,
-            Slug = category.Slug,
-            ParentCategoryId = category.ParentCategoryId,
-            Description = category.Description,
-            ImageUrl = category.ImageUrl,
-            OrderIndex = category.OrderIndex,
-            IsActive = category.IsActive,
-            MetaTitle = category.MetaTitle,
-            MetaDescription = category.MetaDescription,
-            CreatedAt = category.CreatedAt
-        };
-        return Ok(dto);
+        var dto = ToCategoryDto(category);
+        return Ok(ApiResponse<CategoryResponseDto>.SuccessResponse(
+            dto,
+            "Kategori başarıyla getirildi."
+        ));
     }
         // 🔹 ADMIN: Kategori oluştur
     [HttpPost]
@@ -100,20 +80,16 @@ public class CategoryController : ControllerBase
 
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetBySlug), new { slug = category.Slug }, new CategoryResponseDto
-        {
-            CategoryId = category.CategoryId,
-            Name = category.Name,
-            Slug = category.Slug,
-            ParentCategoryId = category.ParentCategoryId,
-            Description = category.Description,
-            ImageUrl = category.ImageUrl,
-            OrderIndex = category.OrderIndex,
-            IsActive = category.IsActive,
-            MetaTitle = category.MetaTitle,
-            MetaDescription = category.MetaDescription,
-            CreatedAt = category.CreatedAt
-        });
+        var responseDto = ToCategoryDto(category);
+        return CreatedAtAction(
+            nameof(GetBySlug),
+            new { slug = category.Slug },
+            ApiResponse<CategoryResponseDto>.SuccessResponse(
+                responseDto,
+                "Kategori başarıyla oluşturuldu.",
+                201
+            )
+        );
     }
 
         // 🔹 ADMIN: Kategori güncelle
@@ -144,7 +120,9 @@ public class CategoryController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Kategori başarıyla güncellendi."
+        ));
     }
 
         // 🔹 ADMIN: Kategori sil (ya da ileride soft delete yapabiliriz)
@@ -168,6 +146,25 @@ public class CategoryController : ControllerBase
         
         _context.Categories.Remove(category);
         await _context.SaveChangesAsync();
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Kategori başarıyla silindi."
+        ));
+    }
+    public static CategoryResponseDto ToCategoryDto(Category c)
+    {
+        return new CategoryResponseDto
+        {
+            CategoryId = c.CategoryId,
+            Name = c.Name,
+            Slug = c.Slug,
+            ParentCategoryId = c.ParentCategoryId,
+            Description = c.Description,
+            ImageUrl = c.ImageUrl,
+            OrderIndex = c.OrderIndex,
+            IsActive = c.IsActive,
+            MetaTitle = c.MetaTitle,
+            MetaDescription = c.MetaDescription,
+            CreatedAt = c.CreatedAt        
+        };
     }
 }

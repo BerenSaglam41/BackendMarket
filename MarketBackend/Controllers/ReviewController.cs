@@ -50,35 +50,14 @@ public class ReviewController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        return Ok(new
-        {
-            Data = reviews.Select(r => new ReviewResponseDto
-            {
-                ReviewId = r.ReviewId,
-                ProductId = r.ProductId,
-                ProductName = r.Product?.Name ?? "",
-                UserId = r.UserId,
-                UserName = r.User?.UserName ?? "Kullanıcı",
-                Rating = r.Rating,
-                Comment = r.Comment,
-                ImageUrl = r.ImageUrl,
-                IsApproved = r.IsApproved,
-                IsVerifiedBuyer = r.IsVerifiedBuyer,
-                IsReported = r.IsReported,
-                ReportCount = r.ReportCount,
-                AdminReply = r.AdminReply,
-                RepliedAt = r.RepliedAt,
-                CreatedAt = r.CreatedAt,
-                UpdatedAt = r.UpdatedAt
-            }),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            }
-        });
+        var reviewDtos = reviews.Select(r => ToReviewDto(r)).ToList();
+        return Ok(PagedApiResponse<List<ReviewResponseDto>>.SuccessResponse(
+            reviewDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Yorumlar başarıyla getirildi."
+        ));
     }
 
     /// <summary>
@@ -109,35 +88,14 @@ public class ReviewController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        return Ok(new
-        {
-            Data = reviews.Select(r => new ReviewResponseDto
-            {
-                ReviewId = r.ReviewId,
-                ProductId = r.ProductId,
-                ProductName = r.Product?.Name ?? "",
-                UserId = r.UserId,
-                UserName = r.User?.UserName ?? "Kullanıcı",
-                Rating = r.Rating,
-                Comment = r.Comment,
-                ImageUrl = r.ImageUrl,
-                IsApproved = r.IsApproved,
-                IsVerifiedBuyer = r.IsVerifiedBuyer,
-                IsReported = r.IsReported,
-                ReportCount = r.ReportCount,
-                AdminReply = r.AdminReply,
-                RepliedAt = r.RepliedAt,
-                CreatedAt = r.CreatedAt,
-                UpdatedAt = r.UpdatedAt
-            }),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            }
-        });
+        var reviewDtos = reviews.Select(r => ToReviewDto(r)).ToList();
+        return Ok(PagedApiResponse<List<ReviewResponseDto>>.SuccessResponse(
+            reviewDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Yorumlar başarıyla getirildi."
+        ));
     }
 
     /// <summary>
@@ -180,11 +138,14 @@ public class ReviewController : ControllerBase
         _context.Reviews.Add(review);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetProductReviews), new { productId = dto.ProductId }, new
-        {
-            Message = "Yorumunuz gönderildi. Admin onayından sonra yayınlanacaktır.",
-            ReviewId = review.ReviewId
-        });
+        return CreatedAtAction(
+            nameof(GetProductReviews), 
+            new { productId = dto.ProductId }, 
+            ApiResponse<object>.SuccessResponse(
+            new { ReviewId = review.ReviewId } ,
+            "Yorumunuz oluşturuldu. Admin onayından sonra yayınlanacaktır.",
+            201
+        ));
     }
 
     /// <summary>
@@ -213,30 +174,11 @@ public class ReviewController : ControllerBase
         review.IsApproved = false;
 
         await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            Message = "Yorumunuz güncellendi. Admin onayından sonra yayınlanacaktır.",
-            Data = new ReviewResponseDto
-            {
-                ReviewId = review.ReviewId,
-                ProductId = review.ProductId,
-                ProductName = review.Product?.Name ?? "",
-                UserId = review.UserId,
-                UserName = review.User?.UserName ?? "Kullanıcı",
-                Rating = review.Rating,
-                Comment = review.Comment,
-                ImageUrl = review.ImageUrl,
-                IsApproved = review.IsApproved,
-                IsVerifiedBuyer = review.IsVerifiedBuyer,
-                IsReported = review.IsReported,
-                ReportCount = review.ReportCount,
-                AdminReply = review.AdminReply,
-                RepliedAt = review.RepliedAt,
-                CreatedAt = review.CreatedAt,
-                UpdatedAt = review.UpdatedAt
-            }
-        });
+        var reviewDto = ToReviewDto(review);
+        return Ok(ApiResponse<ReviewResponseDto>.SuccessResponse(
+            reviewDto,
+            "Yorumunuz güncellendi. Admin onayından sonra yeniden yayınlanacaktır."
+        ));
     }
 
     /// <summary>
@@ -261,14 +203,16 @@ public class ReviewController : ControllerBase
         _context.Reviews.Remove(review);
         await _context.SaveChangesAsync();
 
-        return Ok(new { Message = "Yorumunuz silindi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Yorumunuz silindi."
+        ));
     }
 
     /// <summary>
     /// Yorumu onayla (Admin)
-    /// POST /api/review/{id}/approve
+    /// POST /api/review/admin/{id}/approve
     /// </summary>
-    [HttpPost("{id:int}/approve")]
+    [HttpPost("admin/{id:int}/approve")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ApproveReview(int id)
     {
@@ -276,7 +220,7 @@ public class ReviewController : ControllerBase
             .Include(r => r.User)
             .Include(r => r.Product)
             .FirstOrDefaultAsync(r => r.ReviewId == id);
-            
+
         if (review == null)
             throw new NotFoundException("Yorum bulunamadı.");
 
@@ -287,37 +231,18 @@ public class ReviewController : ControllerBase
         review.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            Message = "Yorum onaylandı ve yayınlandı.",
-            Data = new ReviewResponseDto
-            {
-                ReviewId = review.ReviewId,
-                ProductId = review.ProductId,
-                ProductName = review.Product?.Name ?? "",
-                UserId = review.UserId,
-                UserName = review.User?.UserName ?? "Kullanıcı",
-                Rating = review.Rating,
-                Comment = review.Comment,
-                ImageUrl = review.ImageUrl,
-                IsApproved = review.IsApproved,
-                IsVerifiedBuyer = review.IsVerifiedBuyer,
-                IsReported = review.IsReported,
-                ReportCount = review.ReportCount,
-                AdminReply = review.AdminReply,
-                RepliedAt = review.RepliedAt,
-                CreatedAt = review.CreatedAt,
-                UpdatedAt = review.UpdatedAt
-            }
-        });
+        var reviewDto = ToReviewDto(review);
+        return Ok(ApiResponse<ReviewResponseDto>.SuccessResponse(
+            reviewDto,
+            "Yorum onaylandı ve yayınlandı."
+        ));
     }
 
     /// <summary>
     /// Yorumu reddet (Admin) - Sadece pending yorumlar için
-    /// POST /api/review/{id}/reject
+    /// POST /api/review/admin/{id}/reject
     /// </summary>
-    [HttpPost("{id:int}/reject")]
+    [HttpPost("admin/{id:int}/reject")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RejectReview(int id)
     {
@@ -325,7 +250,7 @@ public class ReviewController : ControllerBase
             .Include(r => r.User)
             .Include(r => r.Product)
             .FirstOrDefaultAsync(r => r.ReviewId == id);
-            
+
         if (review == null)
             throw new NotFoundException("Yorum bulunamadı.");
 
@@ -336,18 +261,17 @@ public class ReviewController : ControllerBase
         _context.Reviews.Remove(review);
         await _context.SaveChangesAsync();
 
-        return Ok(new
-        {
-            Message = "Yorum reddedildi ve silindi.",
-            ReviewId = id
-        });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { ReviewId = id },
+            "Yorum reddedildi ve silindi."
+        ));
     }
 
     /// <summary>
     /// Yayınlanmış yorumu sil (Admin) - Uygunsuz içerik, şikayet vs. için
-    /// DELETE /api/review/{id}/admin-delete
+    /// DELETE /api/review/admin/{id}/delete
     /// </summary>
-    [HttpDelete("{id:int}/admin-delete")]
+    [HttpDelete("admin/{id:int}/delete")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AdminDeleteReview(int id)
     {
@@ -358,14 +282,17 @@ public class ReviewController : ControllerBase
         _context.Reviews.Remove(review);
         await _context.SaveChangesAsync();
 
-        return Ok(new { Message = "Yorum admin tarafından silindi.", ReviewId = id });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { ReviewId = id },
+            "Yorum başarıyla silindi."
+        ));
     }
 
     /// <summary>
     /// Yoruma admin cevabı ekle
-    /// POST /api/review/{id}/admin-reply
+    /// POST /api/review/admin/{id}/reply
     /// </summary>
-    [HttpPost("{id:int}/admin-reply")]
+    [HttpPost("admin/{id:int}/reply")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AddAdminReply(int id, ReviewAdminReplyDto dto)
     {
@@ -379,29 +306,11 @@ public class ReviewController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new
-        {
-            Message = "Admin cevabı eklendi.",
-            Data = new ReviewResponseDto
-            {
-                ReviewId = review.ReviewId,
-                ProductId = review.ProductId,
-                ProductName = review.Product?.Name ?? "",
-                UserId = review.UserId,
-                UserName = review.User?.UserName ?? "Kullanıcı",
-                Rating = review.Rating,
-                Comment = review.Comment,
-                ImageUrl = review.ImageUrl,
-                IsApproved = review.IsApproved,
-                IsVerifiedBuyer = review.IsVerifiedBuyer,
-                IsReported = review.IsReported,
-                ReportCount = review.ReportCount,
-                AdminReply = review.AdminReply,
-                RepliedAt = review.RepliedAt,
-                CreatedAt = review.CreatedAt,
-                UpdatedAt = review.UpdatedAt
-            }
-        });
+        var reviewDto = ToReviewDto(review);
+        return Ok(ApiResponse<ReviewResponseDto>.SuccessResponse(
+            reviewDto,
+            "Admin cevabı eklendi."
+        ));
     }
 
     /// <summary>
@@ -425,14 +334,16 @@ public class ReviewController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { Message = "Yorum şikayet edildi. Admin inceleyecektir." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Yorum şikayet edildi. Teşekkürler. Admine bildirilecektir."
+        ));
     }
 
     /// <summary>
     /// Onay bekleyen yorumları listele (Admin)
-    /// GET /api/review/pending
+    /// GET /api/review/admin/pending
     /// </summary>
-    [HttpGet("pending")]
+    [HttpGet("admin/pending")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetPendingReviews(int page = 1, int pageSize = 20)
     {
@@ -453,42 +364,21 @@ public class ReviewController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        return Ok(new
-        {
-            Data = reviews.Select(r => new ReviewResponseDto
-            {
-                ReviewId = r.ReviewId,
-                ProductId = r.ProductId,
-                ProductName = r.Product?.Name ?? "",
-                UserId = r.UserId,
-                UserName = r.User?.UserName ?? "Kullanıcı",
-                Rating = r.Rating,
-                Comment = r.Comment,
-                ImageUrl = r.ImageUrl,
-                IsApproved = r.IsApproved,
-                IsVerifiedBuyer = r.IsVerifiedBuyer,
-                IsReported = r.IsReported,
-                ReportCount = r.ReportCount,
-                AdminReply = r.AdminReply,
-                RepliedAt = r.RepliedAt,
-                CreatedAt = r.CreatedAt,
-                UpdatedAt = r.UpdatedAt
-            }),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            }
-        });
+        var reviewDtos = reviews.Select(r => ToReviewDto(r)).ToList();
+        return Ok(PagedApiResponse<List<ReviewResponseDto>>.SuccessResponse(
+            reviewDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Onay bekleyen yorumlar başarıyla getirildi."
+        ));
     }
 
     /// <summary>
     /// Tek bir yorumun detayını getir (Admin)
-    /// GET /api/review/{id}
+    /// GET /api/review/admin/{id}
     /// </summary>
-    [HttpGet("{id:int}")]
+    [HttpGet("admin/{id:int}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetReviewById(int id)
     {
@@ -503,32 +393,18 @@ public class ReviewController : ControllerBase
         if (review == null)
             throw new NotFoundException("Yorum bulunamadı.");
 
-        return Ok(new ReviewResponseDto
-        {
-            ReviewId = review.ReviewId,
-            ProductId = review.ProductId,
-            ProductName = review.Product?.Name ?? "",
-            UserId = review.UserId,
-            UserName = review.User?.UserName ?? "Kullanıcı",
-            Rating = review.Rating,
-            Comment = review.Comment,
-            ImageUrl = review.ImageUrl,
-            IsApproved = review.IsApproved,
-            IsVerifiedBuyer = review.IsVerifiedBuyer,
-            IsReported = review.IsReported,
-            ReportCount = review.ReportCount,
-            AdminReply = review.AdminReply,
-            RepliedAt = review.RepliedAt,
-            CreatedAt = review.CreatedAt,
-            UpdatedAt = review.UpdatedAt
-        });
+        var reviewDto = ToReviewDto(review);
+        return Ok(ApiResponse<ReviewResponseDto>.SuccessResponse(
+            reviewDto,
+            "Yorum başarıyla getirildi."
+        ));
     }
 
     /// <summary>
     /// Şikayet edilmiş yorumları listele (Admin)
-    /// GET /api/review/reported
+    /// GET /api/review/admin/reported
     /// </summary>
-    [HttpGet("reported")]
+    [HttpGet("admin/reported")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetReportedReviews(int page = 1, int pageSize = 20)
     {
@@ -549,34 +425,35 @@ public class ReviewController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        return Ok(new
+        var reviewDtos = reviews.Select(r => ToReviewDto(r)).ToList();  
+        return Ok(PagedApiResponse<List<ReviewResponseDto>>.SuccessResponse(
+            reviewDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Şikayet edilmiş yorumlar başarıyla getirildi."
+        ));
+    }
+    private static ReviewResponseDto ToReviewDto(Review r)
+    {
+        return new ReviewResponseDto
         {
-            Data = reviews.Select(r => new ReviewResponseDto
-            {
-                ReviewId = r.ReviewId,
-                ProductId = r.ProductId,
-                ProductName = r.Product?.Name ?? "",
-                UserId = r.UserId,
-                UserName = r.User?.UserName ?? "Kullanıcı",
-                Rating = r.Rating,
-                Comment = r.Comment,
-                ImageUrl = r.ImageUrl,
-                IsApproved = r.IsApproved,
-                IsVerifiedBuyer = r.IsVerifiedBuyer,
-                IsReported = r.IsReported,
-                ReportCount = r.ReportCount,
-                AdminReply = r.AdminReply,
-                RepliedAt = r.RepliedAt,
-                CreatedAt = r.CreatedAt,
-                UpdatedAt = r.UpdatedAt
-            }),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            }
-        });
+            ReviewId = r.ReviewId,
+            ProductId = r.ProductId,
+            ProductName = r.Product?.Name ?? "",
+            UserId = r.UserId,
+            UserName = r.User?.UserName ?? "Kullanıcı",
+            Rating = r.Rating,
+            Comment = r.Comment,
+            ImageUrl = r.ImageUrl,
+            IsApproved = r.IsApproved,
+            IsVerifiedBuyer = r.IsVerifiedBuyer,
+            IsReported = r.IsReported,
+            ReportCount = r.ReportCount,
+            AdminReply = r.AdminReply,
+            RepliedAt = r.RepliedAt,
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt
+        };
     }
 }

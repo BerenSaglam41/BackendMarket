@@ -52,14 +52,20 @@ public class AuthController : ControllerBase
         // 4) Token oluştur
         var token = await _tokenService.CreateTokenAsync(user);
 
-        return Ok(new AuthResponseDto
+        var response = new AuthResponseDto
         {
             Token = token,
             ExpiresAt = DateTime.UtcNow.AddHours(24),
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName
-        });
+        };
+
+        return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(
+            response,
+            "Kayıt başarılı. Hoş geldiniz!",
+            201
+        ));
     }
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto)
@@ -93,14 +99,19 @@ public class AuthController : ControllerBase
         var token = await _tokenService.CreateTokenAsync(user);
 
         // 5) Login başarılı → kullanıcı bilgilerini döndür
-        return Ok(new AuthResponseDto
+        var response = new AuthResponseDto
         {
             Token = token,
             ExpiresAt = DateTime.UtcNow.AddHours(24),
             Email = user.Email ?? "",
             FirstName = user.FirstName,
             LastName = user.LastName
-        });
+        };
+
+        return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(
+            response,
+            "Giriş başarılı. Hoş geldiniz!"
+        ));
     }
 
     /// <summary>
@@ -144,18 +155,20 @@ public class AuthController : ControllerBase
         // Yeni token oluştur (roller değişti)
         var token = await _tokenService.CreateTokenAsync(user);
 
-        return Ok(new
-        {
-            message = "Tebrikler! Artık bir satıcısınız.",
-            token = token,
-            expiresAt = DateTime.UtcNow.AddHours(24),
-            store = new
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new
             {
-                storeName = user.StoreName,
-                storeSlug = user.StoreSlug,
-                isVerified = user.IsStoreVerified
-            }
-        });
+                token = token,
+                expiresAt = DateTime.UtcNow.AddHours(24),
+                store = new
+                {
+                    storeName = user.StoreName,
+                    storeSlug = user.StoreSlug,
+                    isVerified = user.IsStoreVerified
+                }
+            },
+            "Tebrikler! Artık bir satıcısınız."
+        ));
     }
 
     [HttpGet("me")]
@@ -189,6 +202,9 @@ public class AuthController : ControllerBase
             IsStoreVerified = user.IsStoreVerified
         };
 
-        return Ok(response);
+        return Ok(ApiResponse<MeResponseDto>.SuccessResponse(
+            response,
+            "Kullanıcı bilgileriniz başarıyla getirildi."
+        ));
     }
 }

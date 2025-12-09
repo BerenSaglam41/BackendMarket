@@ -69,19 +69,14 @@ public class AdminPendingController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        var response = products.Select(p => ToAdminResponseDto(p));
-
-        return Ok(new
-        {
-            Data = response,
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-            }
-        });
+        var productDtos = products.Select(p => ToAdminResponseDto(p)).ToList();
+        return Ok(PagedApiResponse<List<AdminPendingProductResponseDto>>.SuccessResponse(
+            productDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Pending ürünler başarıyla getirildi"
+        ));
     }
 
     /// <summary>
@@ -100,7 +95,11 @@ public class AdminPendingController : ControllerBase
         if (product == null)
             throw new NotFoundException($"ID: {id} olan ürün önerisi bulunamadı.");
 
-        return Ok(ToAdminResponseDto(product));
+        var productDto = ToAdminResponseDto(product);
+        return Ok(ApiResponse<AdminPendingProductResponseDto>.SuccessResponse(
+            productDto,
+            "Pending ürün detayı başarıyla getirildi"
+        ));
     }
 
     /// <summary>
@@ -126,19 +125,19 @@ public class AdminPendingController : ControllerBase
 
         // Admin düzeltme yapmış olabilir
         var productName = dto?.Name ?? pending.Name;
-        var productSlug = dto?.Slug ?? pending.Slug;
+        var ProductSlug = dto?.Slug ?? pending.Slug;
         var productDescription = dto?.Description ?? pending.Description;
         var brandId = dto?.BrandId ?? pending.BrandId;
         var categoryId = dto?.CategoryId ?? pending.CategoryId;
         var imageUrl = dto?.ImageUrl ?? pending.ImageUrl;
 
         // Slug kontrolü (hem Products hem ProductPendings tablosunda)
-        bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == productSlug);
+        bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == ProductSlug);
         bool slugExistsInPending = await _context.ProductPendings
-            .AnyAsync(p => p.Slug == productSlug && p.ProductPendingId != pending.ProductPendingId);
+            .AnyAsync(p => p.Slug == ProductSlug && p.ProductPendingId != pending.ProductPendingId);
 
         if (slugExistsInProducts || slugExistsInPending)
-            throw new ConflictException($"'{productSlug}' slug'ı zaten kullanılıyor.");
+            throw new ConflictException($"'{ProductSlug}' slug'ı zaten kullanılıyor.");
 
         using var transaction = await _context.Database.BeginTransactionAsync();
             // 1. Yeni Product oluştur (Seller'ın ürünü olarak işaretle)
@@ -146,7 +145,7 @@ public class AdminPendingController : ControllerBase
             var product = new Product
             {
                 Name = productName,
-                Slug = productSlug,
+                Slug = ProductSlug,
                 Description = productDescription,
                 BrandId = brandId,
                 CategoryId = categoryId,
@@ -186,12 +185,16 @@ public class AdminPendingController : ControllerBase
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            return Ok(new
+            var responseData = new 
             {
-                message = "Ürün onaylandı ve yayına alındı.",
                 ProductId = product.ProductId,
-                SellerProductId = sellerProduct.SellerProductId
-            });
+                SellerProductId = sellerProduct.SellerProductId,
+                ProductSlug = product.Slug
+            };
+            return Ok(ApiResponse<object>.SuccessResponse(
+                responseData,
+                "Ürün önerisi onaylandı ve ürün oluşturuldu."
+            ));
     }
 
     /// <summary>
@@ -221,7 +224,9 @@ public class AdminPendingController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Ürün önerisi reddedildi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Ürün önerisi reddedildi."
+        ));
     }
 
     /// <summary>
@@ -251,7 +256,9 @@ public class AdminPendingController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Güncelleme talebi gönderildi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Güncelleme talebi gönderildi."
+        ));
     }
 
     /// <summary>
@@ -272,13 +279,17 @@ public class AdminPendingController : ControllerBase
         var weeklyCount = await _context.ProductPendings
             .CountAsync(p => p.CreatedAt >= DateTime.UtcNow.AddDays(-7));
 
-        return Ok(new
+        var statsData = new
         {
             ByStatus = statusCounts,
             TodaySubmissions = todayCount,
             WeeklySubmissions = weeklyCount,
-            TotalPending = statusCounts.FirstOrDefault(s => s.Status == "Waiting")?.Count ?? 0
-        });
+            TotalPending = statusCounts.FirstOrDefault(s => s.Status == "Waiting")?.Count ?? 0       
+        };
+        return Ok(ApiResponse<object>.SuccessResponse(
+            statsData,
+            "Pending ürün istatistikleri başarıyla getirildi"
+        ));
     }
 
     // ==========================================

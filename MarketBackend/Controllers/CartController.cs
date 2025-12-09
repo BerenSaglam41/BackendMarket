@@ -46,9 +46,9 @@ public class CartController : ControllerBase
         if (cart == null)
         {
             // Boş sepet dön
-            return Ok(new
+            var emptyCart = new
             {
-                Items = new List<CartItemResponseDto>(),
+                Items =new List<CartItemResponseDto>(),
                 Summary = new
                 {
                     TotalItems = 0,
@@ -57,7 +57,11 @@ public class CartController : ControllerBase
                     Total = 0m,
                     AppliedCouponCode = (string?)null
                 }
-            });
+            };
+            return Ok(ApiResponse<object>.SuccessResponse(
+                emptyCart,
+                "Sepet başarıyla getirildi."
+            ));
         }
 
         // Sepet itemlarını DTO'ya çevir
@@ -89,7 +93,11 @@ public class CartController : ControllerBase
             AppliedCouponCode = cart.AppliedCouponCode
         };
 
-        return Ok(new { Items = items, Summary = summary });
+        var cartData = new { Items = items , Summary = summary };
+        return Ok(ApiResponse<object>.SuccessResponse(
+            cartData,
+            "Sepet başarıyla getirildi."
+        ));
     }
 
     /// <summary>
@@ -158,7 +166,7 @@ public class CartController : ControllerBase
 
             existingItem.Quantity = newQuantity;
             existingItem.TotalPrice = sellerProduct.UnitPrice * newQuantity;
-            existingItem.LastUpdated = DateTime.UtcNow;
+            existingItem.UpdatedAt = DateTime.UtcNow;
         }
         else
         {
@@ -182,7 +190,11 @@ public class CartController : ControllerBase
         cart.LastAccessed = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Ürün sepete eklendi.", cartItemCount = cart.Items.Count });
+        var responseData = new { CartItemCount = cart.Items.Count };
+        return Ok(ApiResponse<object>.SuccessResponse(
+            responseData,
+            "Ürün sepete eklendi."
+        ));
     }
 
     /// <summary>
@@ -209,12 +221,14 @@ public class CartController : ControllerBase
 
         cartItem.Quantity = dto.Quantity;
         cartItem.TotalPrice = cartItem.UnitPrice * dto.Quantity;
-        cartItem.LastUpdated = DateTime.UtcNow;
+        cartItem.UpdatedAt = DateTime.UtcNow;
         cartItem.ShoppingCart.LastAccessed = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Sepet güncellendi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Sepet ürünü başarıyla güncellendi."
+        ));
     }
 
     /// <summary>
@@ -238,7 +252,9 @@ public class CartController : ControllerBase
         _context.CartItems.Remove(cartItem);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Ürün sepetten çıkarıldı." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Ürün sepetten çıkarıldı."
+        ));
     }
 
     /// <summary>
@@ -257,12 +273,16 @@ public class CartController : ControllerBase
             .FirstOrDefaultAsync(c => c.AppUserId == userId && c.IsActive);
 
         if (cart == null || !cart.Items.Any())
-            return Ok(new { message = "Sepet zaten boş." });
+            return Ok(ApiResponse.SuccessResponse(
+                "Sepet zaten boş."
+            ));
 
         _context.CartItems.RemoveRange(cart.Items);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Sepet temizlendi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Sepet başarıyla temizlendi."
+        ));
     }
 
     /// <summary>
@@ -282,11 +302,19 @@ public class CartController : ControllerBase
             .FirstOrDefaultAsync(c => c.AppUserId == userId && c.IsActive);
 
         if (cart == null)
-            return Ok(new { count = 0 });
-
+        {
+            var emptyCountData = new { Count = 0 };
+            return Ok(ApiResponse<object>.SuccessResponse(
+                emptyCountData,
+                "Sepetteki Bos."
+            ));
+        }
         var count = cart.Items.Sum(ci => ci.Quantity);
-
-        return Ok(new { count });
+        var countData = new { Count = count };
+        return Ok(ApiResponse<object>.SuccessResponse(
+            countData,
+            "Sepetteki ürün sayısı başarıyla getirildi."
+        ));
     }
 
     /// <summary>
@@ -309,14 +337,14 @@ public class CartController : ControllerBase
 
         // Toggle: true -> false, false -> true
         cartItem.IsSelectedForCheckout = !cartItem.IsSelectedForCheckout;
-        cartItem.LastUpdated = DateTime.UtcNow;
+        cartItem.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return Ok(new 
-        { 
-            message = "Seçim güncellendi.",
-            isSelected = cartItem.IsSelectedForCheckout
-        });
+        var responseData = new { IsSelected = cartItem.IsSelectedForCheckout };
+        return Ok(ApiResponse<object>.SuccessResponse(
+            responseData,
+            "Sepet ürünü seçim durumu güncellendi."
+        ));
     }
 }

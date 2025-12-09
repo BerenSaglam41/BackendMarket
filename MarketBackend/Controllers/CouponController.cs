@@ -35,23 +35,12 @@ public class CouponController : ControllerBase
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
 
-        var response = coupons.Select(c => new CouponResponseDto
-        {
-            CouponId = c.CouponId,
-            Code = c.Code,
-            DiscountPercentage = c.DiscountPercentage,
-            IsActive = c.IsActive,
-            ValidFrom = c.ValidFrom,
-            ValidUntil = c.ValidUntil,
-            MinimumPurchaseAmount = c.MinimumPurchaseAmount,
-            MaxUsageCount = c.MaxUsageCount,
-            CurrentUsageCount = c.CurrentUsageCount,
-            CouponType = c.CreatedByAdminId != null ? "Platform" : "Seller",
-            SellerStoreName = c.CreatedBySeller?.StoreName,
-            CreatedAt = c.CreatedAt
-        });
+        var response = coupons.Select(c => ToCouponDto(c)).ToList();
 
-        return Ok(response);
+        return Ok(ApiResponse<List<CouponResponseDto>>.SuccessResponse(
+            response,
+            "Kuponlar başarıyla getirildi."
+        ));
     }
 
     // ID ile kupon getir
@@ -66,21 +55,11 @@ public class CouponController : ControllerBase
         if (coupon == null)
             throw new NotFoundException($"ID: {id} olan kupon bulunamadı.");
 
-        return Ok(new CouponResponseDto
-        {
-            CouponId = coupon.CouponId,
-            Code = coupon.Code,
-            DiscountPercentage = coupon.DiscountPercentage,
-            IsActive = coupon.IsActive,
-            ValidFrom = coupon.ValidFrom,
-            ValidUntil = coupon.ValidUntil,
-            MinimumPurchaseAmount = coupon.MinimumPurchaseAmount,
-            MaxUsageCount = coupon.MaxUsageCount,
-            CurrentUsageCount = coupon.CurrentUsageCount,
-            CouponType = coupon.CreatedByAdminId != null ? "Platform" : "Seller",
-            SellerStoreName = coupon.CreatedBySeller?.StoreName,
-            CreatedAt = coupon.CreatedAt
-        });
+        var dto = ToCouponDto(coupon);
+        return Ok(ApiResponse<CouponResponseDto>.SuccessResponse(
+            dto,
+            "Kupon başarıyla getirildi."
+        ));
     }
 
     // Platform kuponu oluştur (Admin)
@@ -114,20 +93,16 @@ public class CouponController : ControllerBase
         _context.Coupons.Add(coupon);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = coupon.CouponId }, new CouponResponseDto
-        {
-            CouponId = coupon.CouponId,
-            Code = coupon.Code,
-            DiscountPercentage = coupon.DiscountPercentage,
-            IsActive = coupon.IsActive,
-            ValidFrom = coupon.ValidFrom,
-            ValidUntil = coupon.ValidUntil,
-            MinimumPurchaseAmount = coupon.MinimumPurchaseAmount,
-            MaxUsageCount = coupon.MaxUsageCount,
-            CurrentUsageCount = coupon.CurrentUsageCount,
-            CouponType = "Platform",
-            CreatedAt = coupon.CreatedAt
-        });
+        var responseDto = ToCouponDto(coupon);
+        return CreatedAtAction(
+            nameof(GetById),
+            new { id = coupon.CouponId },
+            ApiResponse<CouponResponseDto>.SuccessResponse(
+                responseDto,
+                "Kupon başarıyla oluşturuldu.",
+                201
+            )
+        );
     }
 
     // Kupon güncelle (Sadece platform kuponları)
@@ -161,9 +136,12 @@ public class CouponController : ControllerBase
         if (dto.IsActive.HasValue)
             coupon.IsActive = dto.IsActive.Value;
 
+        coupon.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Kupon başarıyla güncellendi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Kupon başarıyla güncellendi."
+        ));
     }
 
     // Kupon sil (Sadece platform kuponları)
@@ -182,7 +160,9 @@ public class CouponController : ControllerBase
         _context.Coupons.Remove(coupon);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Kupon başarıyla silindi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Kupon başarıyla silindi."
+        ));
     }
 
     // Kupon aktif/pasif yap
@@ -195,13 +175,13 @@ public class CouponController : ControllerBase
             throw new NotFoundException($"ID: {id} olan kupon bulunamadı.");
 
         coupon.IsActive = !coupon.IsActive;
+        coupon.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Ok(new 
-        { 
-            message = coupon.IsActive ? "Kupon aktif edildi." : "Kupon pasif edildi.",
-            isActive = coupon.IsActive
-        });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { IsActive = coupon.IsActive },
+            coupon.IsActive ? "Kupon aktif edildi." : "Kupon pasif edildi."
+        ));
     }
 
     // Kupon kullanım istatistikleri (Tüm kuponlar için - Admin)
@@ -216,36 +196,74 @@ public class CouponController : ControllerBase
         if (coupon == null)
             throw new NotFoundException($"ID: {id} olan kupon bulunamadı.");
 
-        var usageRate = coupon.MaxUsageCount.HasValue 
-            ? (double)coupon.CurrentUsageCount / coupon.MaxUsageCount.Value * 100 
+        var usageRate = coupon.MaxUsageCount.HasValue
+            ? (double)coupon.CurrentUsageCount / coupon.MaxUsageCount.Value * 100
             : 0;
 
-        int? remainingUses = coupon.MaxUsageCount.HasValue 
-            ? coupon.MaxUsageCount.Value - coupon.CurrentUsageCount 
+        int? remainingUses = coupon.MaxUsageCount.HasValue
+            ? coupon.MaxUsageCount.Value - coupon.CurrentUsageCount
             : null;
 
         var daysRemaining = (coupon.ValidUntil - DateTime.UtcNow).Days;
         var isExpired = DateTime.UtcNow > coupon.ValidUntil;
         var isNotStarted = DateTime.UtcNow < coupon.ValidFrom;
 
-        return Ok(new
-        {
-            CouponId = coupon.CouponId,
-            Code = coupon.Code,
-            CouponType = coupon.CreatedByAdminId != null ? "Platform" : "Seller",
-            SellerStoreName = coupon.CreatedBySeller?.StoreName,
-            CurrentUsageCount = coupon.CurrentUsageCount,
-            MaxUsageCount = coupon.MaxUsageCount,
-            RemainingUses = remainingUses,
-            UsageRate = Math.Round(usageRate, 2),
-            IsActive = coupon.IsActive,
-            IsExpired = isExpired,
-            IsNotStarted = isNotStarted,
-            DaysRemaining = daysRemaining > 0 ? daysRemaining : 0,
-            ValidFrom = coupon.ValidFrom,
-            ValidUntil = coupon.ValidUntil,
-            DiscountPercentage = coupon.DiscountPercentage,
-            MinimumPurchaseAmount = coupon.MinimumPurchaseAmount
-        });
+        var stats = ToCouponStatsDto(coupon);
+        return Ok(ApiResponse<CouponStatsResponseDto>.SuccessResponse(
+            stats,
+            "Kupon istatistikleri başarıyla getirildi."
+        ));
     }
+    private static CouponResponseDto ToCouponDto(Coupon c)
+    {
+        return new CouponResponseDto
+        {
+            CouponId = c.CouponId,
+            Code = c.Code,
+            DiscountPercentage = c.DiscountPercentage,
+            IsActive = c.IsActive,
+            ValidFrom = c.ValidFrom,
+            ValidUntil = c.ValidUntil,
+            MinimumPurchaseAmount = c.MinimumPurchaseAmount,
+            MaxUsageCount = c.MaxUsageCount,
+            CurrentUsageCount = c.CurrentUsageCount,
+            CouponType = c.CreatedByAdminId != null ? "Platform" : "Seller",
+            SellerStoreName = c.CreatedBySeller?.StoreName,
+            CreatedAt = c.CreatedAt
+        };
+    }
+    private static CouponStatsResponseDto ToCouponStatsDto(Coupon c)
+{
+    var usageRate = c.MaxUsageCount.HasValue 
+        ? (double)c.CurrentUsageCount / c.MaxUsageCount.Value * 100 
+        : 0;
+
+    int? remainingUses = c.MaxUsageCount.HasValue 
+        ? c.MaxUsageCount.Value - c.CurrentUsageCount 
+        : null;
+
+    var daysRemaining = (c.ValidUntil - DateTime.UtcNow).Days;
+    var isExpired = DateTime.UtcNow > c.ValidUntil;
+    var isNotStarted = DateTime.UtcNow < c.ValidFrom;
+
+    return new CouponStatsResponseDto
+    {
+        CouponId = c.CouponId,
+        Code = c.Code,
+        CouponType = c.CreatedByAdminId != null ? "Platform" : "Seller",
+        SellerStoreName = c.CreatedBySeller?.StoreName,
+        CurrentUsageCount = c.CurrentUsageCount,
+        MaxUsageCount = c.MaxUsageCount,
+        RemainingUses = remainingUses,
+        UsageRate = Math.Round(usageRate, 2),
+        IsActive = c.IsActive,
+        IsExpired = isExpired,
+        IsNotStarted = isNotStarted,
+        DaysRemaining = daysRemaining > 0 ? daysRemaining : 0,
+        ValidFrom = c.ValidFrom,
+        ValidUntil = c.ValidUntil,
+        DiscountPercentage = c.DiscountPercentage,
+        MinimumPurchaseAmount = c.MinimumPurchaseAmount
+    };
+}
 }

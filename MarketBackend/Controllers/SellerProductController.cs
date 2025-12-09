@@ -63,19 +63,15 @@ public class SellerProductController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        var response = products.Select(p => ToSellerResponseDto(p));
+        var response = products.Select(p => ToSellerResponseDto(p)).ToList();
         
-        return Ok(new
-        {
-            Data = response,
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-            }
-        });
+        return Ok(PagedApiResponse<List<SellerProductResponseDto>>.SuccessResponse(
+            response,
+            page,
+            pageSize,
+            totalCount,
+            "Ürün önerileriniz başarıyla getirildi."
+        ));
     }
 
     /// <summary>
@@ -97,7 +93,11 @@ public class SellerProductController : ControllerBase
         if (product == null)
             throw new NotFoundException($"ID '{id}' ile ürün önerisi bulunamadı.");
 
-        return Ok(ToSellerResponseDto(product));
+        var dto = ToSellerResponseDto(product);
+        return Ok(ApiResponse<SellerProductResponseDto>.SuccessResponse(
+            dto,
+            "Ürün önerisi başarıyla getirildi."
+        ));
     }
 
     /// <summary>
@@ -163,10 +163,15 @@ public class SellerProductController : ControllerBase
         await _context.Entry(pending).Reference(p => p.Brand).LoadAsync();
         await _context.Entry(pending).Reference(p => p.Category).LoadAsync();
 
+        var responseDto = ToSellerResponseDto(pending);
         return CreatedAtAction(
             nameof(GetMyPendingProduct), 
             new { id = pending.ProductPendingId }, 
-            ToSellerResponseDto(pending)
+            ApiResponse<SellerProductResponseDto>.SuccessResponse(
+                responseDto,
+                "Ürün öneriniz oluşturuldu. Admin onayından sonra yayınlanacaktır.",
+                201
+            )
         );
     }
 
@@ -223,6 +228,7 @@ public class SellerProductController : ControllerBase
         pending.CategoryId = dto.CategoryId;
         pending.SellerCategorySuggestion = dto.SellerCategorySuggestion;
         pending.ImageUrl = dto.ImageUrl;
+        pending.UpdatedAt = DateTime.UtcNow;
         pending.ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null;
         pending.SellerSku = dto.SellerSku;
         pending.Barcode = dto.Barcode;
@@ -240,7 +246,9 @@ public class SellerProductController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Ürün öneriniz başarıyla güncellendi."
+        ));
     }
 
     /// <summary>
@@ -267,7 +275,9 @@ public class SellerProductController : ControllerBase
         _context.ProductPendings.Remove(pending);
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Ürün öneriniz başarıyla silindi."
+        ));
     }
 
     // ==========================================
@@ -326,19 +336,15 @@ public class SellerProductController : ControllerBase
             SellerNote = sp.SellerNote,
             IsActive = sp.IsActive,
             CreatedAt = sp.CreatedAt
-        });
+        }).ToList();
 
-        return Ok(new
-        {
-            Data = response,
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-            }
-        });
+        return Ok(PagedApiResponse<List<SellerListingResponseDto>>.SuccessResponse(
+            response,
+            page,
+            pageSize,
+            totalCount,
+            "Satışlarınız başarıyla getirildi."
+        ));
     }
 
     /// <summary>
@@ -377,10 +383,14 @@ public class SellerProductController : ControllerBase
         if (existingListing)
             throw new ConflictException($"ID '{dto.ProductId}' ürününü zaten satıyorsunuz.");
 
+        // Generate unique slug: product-slug-seller-slug (e.g., "iphone-15-pro-techstore")
+        var slug = await GenerateListingSlug(product.Slug, user.StoreSlug);
+
         var listing = new SellerProduct
         {
             SellerId = user.Id,
             ProductId = dto.ProductId,
+            Slug = slug,
             OriginalPrice = dto.OriginalPrice,
             DiscountPercentage = dto.DiscountPercentage,
             Stock = dto.Stock,
@@ -394,7 +404,7 @@ public class SellerProductController : ControllerBase
         _context.SellerProducts.Add(listing);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetMyListings), new { }, new SellerListingResponseDto
+        var responseDto = new SellerListingResponseDto
         {
             ListingId = listing.SellerProductId,
             ProductId = listing.ProductId,
@@ -410,7 +420,17 @@ public class SellerProductController : ControllerBase
             SellerNote = listing.SellerNote,
             IsActive = listing.IsActive,
             CreatedAt = listing.CreatedAt
-        });
+        };
+
+        return CreatedAtAction(
+            nameof(GetMyListings), 
+            new { id = listing.SellerProductId }, 
+            ApiResponse<SellerListingResponseDto>.SuccessResponse(
+                responseDto,
+                "Satış başarıyla oluşturuldu.",
+                201
+            )
+        );
     }
 
     /// <summary>
@@ -437,10 +457,12 @@ public class SellerProductController : ControllerBase
         listing.ShippingCost = dto.ShippingCost;
         listing.SellerNote = dto.SellerNote;
         listing.IsActive = dto.IsActive;
-
+        listing.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Satış başarıyla güncellendi."
+        ));
     }
 
     /// <summary>
@@ -463,7 +485,9 @@ public class SellerProductController : ControllerBase
         _context.SellerProducts.Remove(listing);
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return Ok(ApiResponse.SuccessResponse(
+            "Satış başarıyla kaldırıldı."
+        ));
     }
 
     // ==========================================
@@ -495,7 +519,7 @@ public class SellerProductController : ControllerBase
         var totalListings = await _context.SellerProducts
             .CountAsync(sp => sp.SellerId == user.Id);
 
-        return Ok(new
+        var dashboardData = new
         {
             PendingProducts = new
             {
@@ -509,7 +533,12 @@ public class SellerProductController : ControllerBase
                 Active = activeListings,
                 Total = totalListings
             }
-        });
+        };
+
+        return Ok(ApiResponse<object>.SuccessResponse(
+            dashboardData,
+            "Dashboard verileri başarıyla getirildi."
+        ));
     }
 
     // ==========================================
@@ -580,15 +609,15 @@ public class SellerProductController : ControllerBase
         product.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Ok(new 
-        { 
-            message = product.IsActive ? "Ürün aktif edildi." : "Ürün pasif edildi.",
-            isActive = product.IsActive
-        });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { isActive = product.IsActive },
+            product.IsActive ? "Ürün aktif edildi." : "Ürün pasif edildi."
+        ));
     }
 
     /// <summary>
-    /// Seller kendi oluşturduğu ürünleri listeler (Onaylanmış ve yayında)
+    /// Seller'ın satışa sunduğu tüm ürünleri listeler (SellerProducts)
+    /// Bu endpoint /api/seller/listings ile aynı işi yapar - satışları listeler
     /// GET /api/seller/my-products
     /// </summary>
     [HttpGet("my-products")]
@@ -605,77 +634,69 @@ public class SellerProductController : ControllerBase
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 100) pageSize = 100;
 
-        var query = _context.Products
-            .Include(p => p.Brand)
-            .Include(p => p.Category)
-            .Include(p => p.CreatedBySeller)
-            .Include(p => p.SellerProducts.Where(sp => sp.IsActive))
-                .ThenInclude(sp => sp.Seller)
-            .Where(p => p.CreatedBySellerId == user.Id);
+        // Seller'ın kendi satışları (SellerProducts) - listings ile aynı
+        var query = _context.SellerProducts
+            .Include(sp => sp.Product)
+                .ThenInclude(p => p.Brand)
+            .Include(sp => sp.Product)
+                .ThenInclude(p => p.Category)
+            .Where(sp => sp.SellerId == user.Id);
 
         if (isActive.HasValue)
-            query = query.Where(p => p.IsActive == isActive.Value);
+            query = query.Where(sp => sp.IsActive == isActive.Value);
 
         var totalCount = await query.CountAsync();
-        var products = await query
-            .OrderByDescending(p => p.CreatedAt)
+        var listings = await query
+            .OrderByDescending(sp => sp.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
-        var response = products.Select(p => new ProductResponseDto
+        var response = listings.Select(sp => new SellerListingResponseDto
         {
-            ProductId = p.ProductId,
-            Name = p.Name,
-            Slug = p.Slug,
-            Description = p.Description,
-            BrandId = p.BrandId,
-            BrandName = p.Brand?.Name,
-            CategoryId = p.CategoryId,
-            CategoryName = p.Category?.Name,
-            ImageUrl = p.ImageUrl,
-            ImageGallery = string.IsNullOrEmpty(p.ImageGalleryJson) ? null : JsonSerializer.Deserialize<List<string>>(p.ImageGalleryJson),
-            MetaTitle = p.MetaTitle,
-            MetaDescription = p.MetaDescription,
-            IsActive = p.IsActive,
-            ReviewCount = p.ReviewCount,
-            CreatedAt = p.CreatedAt,
-            UpdatedAt = p.UpdatedAt,
-            CreatedBySellerId = p.CreatedBySellerId,
-            Store = p.CreatedBySeller != null ? new ProductStoreInfoDto
-            {
-                StoreName = p.CreatedBySeller.StoreName ?? "",
-                StoreSlug = p.CreatedBySeller.StoreSlug ?? "",
-                StoreLogoUrl = p.CreatedBySeller.StoreLogoUrl,
-                IsStoreVerified = p.CreatedBySeller.IsStoreVerified
-            } : null,
-            MinPrice = p.SellerProducts.Any(sp => sp.IsActive) 
-                ? p.SellerProducts.Where(sp => sp.IsActive).Min(sp => sp.UnitPrice) 
-                : null,
-            SellerCount = p.SellerProducts.Count(sp => sp.IsActive),
-            Sellers = p.SellerProducts.Select(sp => new ProductSellerDto
-            {
-                ListingId = sp.SellerProductId,
-                SellerId = sp.SellerId,
-                StoreName = sp.Seller?.StoreName ?? "",
-                StoreSlug = sp.Seller?.StoreSlug ?? "",
-                IsStoreVerified = sp.Seller?.IsStoreVerified ?? false,
-                OriginalPrice = sp.OriginalPrice,
-                DiscountPercentage = sp.DiscountPercentage,
-                UnitPrice = sp.UnitPrice,
-                Stock = sp.Stock,
-                ShippingTimeInDays = sp.ShippingTimeInDays,
-                ShippingCost = sp.ShippingCost
-            }).ToList()
-        });
+            ListingId = sp.SellerProductId,
+            ProductId = sp.ProductId,
+            ProductName = sp.Product.Name,
+            ProductSlug = sp.Product.Slug,
+            ProductImageUrl = sp.Product.ImageUrl,
+            OriginalPrice = sp.OriginalPrice,
+            DiscountPercentage = sp.DiscountPercentage,
+            UnitPrice = sp.UnitPrice,
+            Stock = sp.Stock,
+            ShippingTimeInDays = sp.ShippingTimeInDays,
+            ShippingCost = sp.ShippingCost,
+            SellerNote = sp.SellerNote,
+            IsActive = sp.IsActive,
+            CreatedAt = sp.CreatedAt
+        }).ToList();
 
-        return Ok(new
+        return Ok(PagedApiResponse<List<SellerListingResponseDto>>.SuccessResponse(
+            response,
+            page,
+            pageSize,
+            totalCount,
+            "Satışlarınız başarıyla getirildi."
+        ));
+    }
+
+    /// <summary>
+    /// Generates a unique slug for a listing combining product slug and seller slug
+    /// Format: {product-slug}-{seller-slug} (e.g., "iphone-15-pro-techstore")
+    /// If conflict exists, appends a number (e.g., "iphone-15-pro-techstore-2")
+    /// </summary>
+    private async Task<string> GenerateListingSlug(string productSlug, string sellerSlug)
+    {
+        var baseSlug = $"{productSlug}-{sellerSlug}";
+        var slug = baseSlug;
+        var counter = 1;
+
+        // Check for conflicts and append number if needed
+        while (await _context.SellerProducts.AnyAsync(sp => sp.Slug == slug))
         {
-            TotalCount = totalCount,
-            Page = page,
-            PageSize = pageSize,
-            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-            Data = response
-        });
+            counter++;
+            slug = $"{baseSlug}-{counter}";
+        }
+
+        return slug;
     }
 }

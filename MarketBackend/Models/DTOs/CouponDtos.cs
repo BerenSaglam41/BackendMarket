@@ -57,3 +57,22 @@ public class ApplyCouponDto
 {
     public string Code {get;set;} = string.Empty;
 }
+public class CouponStatsResponseDto
+{
+    public int CouponId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string CouponType { get; set; } = string.Empty; // "Platform" veya "Seller"
+    public string? SellerStoreName { get; set; }
+    public int CurrentUsageCount { get; set; }
+    public int? MaxUsageCount { get; set; }
+    public int? RemainingUses { get; set; }
+    public double UsageRate { get; set; } // Yüzde olarak kullanım oranı
+    public bool IsActive { get; set; }
+    public bool IsExpired { get; set; }
+    public bool IsNotStarted { get; set; }
+    public int DaysRemaining { get; set; }
+    public DateTime ValidFrom { get; set; }
+    public DateTime ValidUntil { get; set; }
+    public decimal DiscountPercentage { get; set; }
+    public decimal MinimumPurchaseAmount { get; set; }
+}

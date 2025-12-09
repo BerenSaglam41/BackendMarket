@@ -34,7 +34,11 @@ public class SellerProduct
     // Satıcı açıklaması (ürün açıklaması değil!)
     public string? SellerNote { get; set; }
 
+    // SEO ve URL için benzersiz slug (product-slug + store-slug)
+    public string Slug { get; set; } = string.Empty;
+
     // Kontrol
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
 }

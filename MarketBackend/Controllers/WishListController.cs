@@ -64,7 +64,10 @@ public class WishListController : ControllerBase
                                 .Min(sp => sp.UnitPrice) != w.PriceAtAddition
             })
             .ToListAsync();
-        return Ok(wishlistItems);
+        return Ok(ApiResponse<List<WishlistItemResponseDto>>.SuccessResponse(
+            wishlistItems,
+            "Favorileriniz başarıyla getirildi."
+        ));
     }
     // Favorilere ürün ekle
     [HttpPost]
@@ -116,12 +119,14 @@ public class WishListController : ControllerBase
             ? "Ürün favorilere eklendi"
             : "Ürün favorilere eklendi. Stoğa girdiğinde size bildirim göndereceğiz";
         
-        return Ok(new
-        {
-            message,
-            wishlistItemId = wishlistItem.WishlistItemId,
-            isAvailable = currentMinPrice.HasValue
-        });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new
+            {
+                wishlistItemId = wishlistItem.WishlistItemId,
+                isAvailable = currentMinPrice.HasValue
+            },
+            message
+        ));
     }
     // Favorilerden ürün çıkar
     [HttpDelete("{id}")]
@@ -136,7 +141,9 @@ public class WishListController : ControllerBase
             throw new NotFoundException("Favorilerinizde bu ürün bulunamadı.");
         _context.WishlistItems.Remove(wishlistItem);
         await _context.SaveChangesAsync();
-        return Ok(new { message = "Ürün favorilerden çıkarıldı." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Ürün favorilerden çıkarıldı."
+        ));
     }       
     // Tum Favorileri Temizle
     [HttpDelete("clear")]
@@ -148,7 +155,10 @@ public class WishListController : ControllerBase
         var count = await _context.WishlistItems
             .Where(w => w.AppUserId == userId)
             .ExecuteDeleteAsync();
-        return Ok(new { message = $"{count} ürün favorilerden çıkarıldı." });   
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { count },
+            $"{count} ürün favorilerden çıkarıldı."
+        ));   
     }
     // Check is it in Wishlist
     [HttpGet("check/{productId}")]
@@ -159,7 +169,10 @@ public class WishListController : ControllerBase
             throw new UnauthorizedException("Giris yapmaniz gerekiyor.");
         var exists = await _context.WishlistItems
             .AnyAsync(w => w.AppUserId == userId && w.ProductId == productId);
-        return Ok(new { isInWishlist = exists });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { IsInWishlist = exists },
+            "Favori durumu başarıyla getirildi."
+        ));
     }
     // Get Favorite Count
     [HttpGet("count")]
@@ -170,6 +183,9 @@ public class WishListController : ControllerBase
             throw new UnauthorizedException("Giris yapmaniz gerekiyor.");
         var count = await _context.WishlistItems
             .CountAsync(w => w.AppUserId == userId);
-        return Ok(new { count = count });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { Count = count },
+            "Favori sayısı başarıyla getirildi."
+        ));
     }
 }

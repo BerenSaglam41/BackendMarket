@@ -19,7 +19,7 @@ public class CartItem
     public int Quantity { get; set; }                          // Adet
 
     public DateTime DateAdded { get; set; } = DateTime.UtcNow;
-    public DateTime? LastUpdated { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Kupon
     public string? AppliedCouponCode { get; set; }             // Ürün özel kupon

@@ -40,23 +40,12 @@ public class SellerCouponController : ControllerBase
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
 
-        var response = coupons.Select(c => new CouponResponseDto
-        {
-            CouponId = c.CouponId,
-            Code = c.Code,
-            DiscountPercentage = c.DiscountPercentage,
-            IsActive = c.IsActive,
-            ValidFrom = c.ValidFrom,
-            ValidUntil = c.ValidUntil,
-            MinimumPurchaseAmount = c.MinimumPurchaseAmount,
-            MaxUsageCount = c.MaxUsageCount,
-            CurrentUsageCount = c.CurrentUsageCount,
-            CouponType = "Seller",
-            SellerStoreName = user.StoreName,
-            CreatedAt = c.CreatedAt
-        });
+        var response = coupons.Select(c => ToCouponDto(c, user.StoreName)).ToList();
 
-        return Ok(response);
+        return Ok(ApiResponse<List<CouponResponseDto>>.SuccessResponse(
+            response,
+            "Kuponlarınız başarıyla getirildi."
+        ));
     }
 
     // ID ile seller kupon getir
@@ -73,21 +62,11 @@ public class SellerCouponController : ControllerBase
         if (coupon == null)
             throw new NotFoundException($"ID: {id} olan kupon bulunamadı.");
 
-        return Ok(new CouponResponseDto
-        {
-            CouponId = coupon.CouponId,
-            Code = coupon.Code,
-            DiscountPercentage = coupon.DiscountPercentage,
-            IsActive = coupon.IsActive,
-            ValidFrom = coupon.ValidFrom,
-            ValidUntil = coupon.ValidUntil,
-            MinimumPurchaseAmount = coupon.MinimumPurchaseAmount,
-            MaxUsageCount = coupon.MaxUsageCount,
-            CurrentUsageCount = coupon.CurrentUsageCount,
-            CouponType = "Seller",
-            SellerStoreName = user.StoreName,
-            CreatedAt = coupon.CreatedAt
-        });
+        var dto = ToCouponDto(coupon, user.StoreName);
+        return Ok(ApiResponse<CouponResponseDto>.SuccessResponse(
+            dto,
+            "Kupon başarıyla getirildi."
+        ));
     }
 
     // Seller mağaza kuponu oluştur
@@ -125,21 +104,16 @@ public class SellerCouponController : ControllerBase
         _context.Coupons.Add(coupon);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = coupon.CouponId }, new CouponResponseDto
-        {
-            CouponId = coupon.CouponId,
-            Code = coupon.Code,
-            DiscountPercentage = coupon.DiscountPercentage,
-            IsActive = coupon.IsActive,
-            ValidFrom = coupon.ValidFrom,
-            ValidUntil = coupon.ValidUntil,
-            MinimumPurchaseAmount = coupon.MinimumPurchaseAmount,
-            MaxUsageCount = coupon.MaxUsageCount,
-            CurrentUsageCount = coupon.CurrentUsageCount,
-            CouponType = "Seller",
-            SellerStoreName = user.StoreName,
-            CreatedAt = coupon.CreatedAt
-        });
+        var responseDto = ToCouponDto(coupon, user.StoreName);
+        return CreatedAtAction(
+            nameof(GetById), 
+            new { id = coupon.CouponId }, 
+            ApiResponse<CouponResponseDto>.SuccessResponse(
+                responseDto,
+                "Kupon başarıyla oluşturuldu.",
+                201
+            )
+        );
     }
 
     // Seller kuponu güncelle
@@ -174,9 +148,12 @@ public class SellerCouponController : ControllerBase
         if (dto.IsActive.HasValue)
             coupon.IsActive = dto.IsActive.Value;
 
+        coupon.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Kupon başarıyla güncellendi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Kupon başarıyla güncellendi."
+        ));
     }
 
     // Seller kuponu sil
@@ -196,7 +173,9 @@ public class SellerCouponController : ControllerBase
         _context.Coupons.Remove(coupon);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Kupon başarıyla silindi." });
+        return Ok(ApiResponse.SuccessResponse(
+            "Kupon başarıyla silindi."
+        ));
     }
 
     // Kupon aktif/pasif yap
@@ -214,13 +193,13 @@ public class SellerCouponController : ControllerBase
             throw new NotFoundException($"ID: {id} olan kupon bulunamadı veya size ait değil.");
 
         coupon.IsActive = !coupon.IsActive;
+        coupon.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return Ok(new 
-        { 
-            message = coupon.IsActive ? "Kupon aktif edildi." : "Kupon pasif edildi.",
-            isActive = coupon.IsActive
-        });
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { isActive = coupon.IsActive },
+            coupon.IsActive ? "Kupon aktif edildi." : "Kupon pasif edildi."
+        ));
     }
 
     // Kupon kullanım istatistikleri
@@ -249,10 +228,12 @@ public class SellerCouponController : ControllerBase
         var isExpired = DateTime.UtcNow > coupon.ValidUntil;
         var isNotStarted = DateTime.UtcNow < coupon.ValidFrom;
 
-        return Ok(new
+        var stats = new CouponStatsResponseDto
         {
             CouponId = coupon.CouponId,
             Code = coupon.Code,
+            CouponType = "Seller",
+            SellerStoreName = user.StoreName,
             CurrentUsageCount = coupon.CurrentUsageCount,
             MaxUsageCount = coupon.MaxUsageCount,
             RemainingUses = remainingUses,
@@ -262,7 +243,33 @@ public class SellerCouponController : ControllerBase
             IsNotStarted = isNotStarted,
             DaysRemaining = daysRemaining > 0 ? daysRemaining : 0,
             ValidFrom = coupon.ValidFrom,
-            ValidUntil = coupon.ValidUntil
-        });
+            ValidUntil = coupon.ValidUntil,
+            DiscountPercentage = coupon.DiscountPercentage,
+            MinimumPurchaseAmount = coupon.MinimumPurchaseAmount
+        };
+
+        return Ok(ApiResponse<CouponStatsResponseDto>.SuccessResponse(
+            stats,
+            "Kupon istatistikleri başarıyla getirildi."
+        ));
+    }
+
+    private static CouponResponseDto ToCouponDto(Coupon c, string? sellerStoreName)
+    {
+        return new CouponResponseDto
+        {
+            CouponId = c.CouponId,
+            Code = c.Code,
+            DiscountPercentage = c.DiscountPercentage,
+            IsActive = c.IsActive,
+            ValidFrom = c.ValidFrom,
+            ValidUntil = c.ValidUntil,
+            MinimumPurchaseAmount = c.MinimumPurchaseAmount,
+            MaxUsageCount = c.MaxUsageCount,
+            CurrentUsageCount = c.CurrentUsageCount,
+            CouponType = "Seller",
+            SellerStoreName = sellerStoreName,
+            CreatedAt = c.CreatedAt
+        };
     }
 }

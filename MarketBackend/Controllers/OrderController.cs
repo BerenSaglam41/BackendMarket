@@ -147,13 +147,20 @@ public class OrderController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetOrderById), new { id = order.OrderId }, new
+        var responseData = new
         {
-            Message = "Sipariş başarıyla oluşturuldu.",
             OrderId = order.OrderId,
             OrderNumber = order.OrderNumber,
-            TotalAmount = totalAmount
-        });
+            TotalAmount = totalAmount,
+            OrderStatus = order.OrderStatus.ToString(),
+            PaymentStatus = order.PaymentStatus.ToString()
+        };
+
+        return CreatedAtAction(
+            nameof(GetOrderById), 
+            new { id = order.OrderId }, 
+            ApiResponse<object>.SuccessResponse(responseData, "Sipariş başarıyla oluşturuldu.", 201)
+        );
     }
     // Siparisleri listele
     [HttpGet]
@@ -176,53 +183,52 @@ public class OrderController : ControllerBase
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
-        return Ok(new
+            
+        var orderDtos = orders.Select(o => new OrderResponseDto
         {
-            Data = orders.Select(o => new OrderResponseDto
+            OrderId = o.OrderId,
+            OrderNumber = o.OrderNumber,
+            OrderStatus = o.OrderStatus.ToString(),
+            PaymentStatus = o.PaymentStatus.ToString(),
+            PaymentMethod = o.PaymentMethod.ToString(),
+            ShippingAddress = o.ShippingAddress.ToAddressDto(),
+            BillingAddress = o.BillingAddress.ToAddressDto(),
+            Subtotal = o.Subtotal,
+            TaxAmount = o.TaxAmount,
+            DiscountAmount = o.DiscountAmount,
+            ShippingCost = o.ShippingCost,
+            TotalAmount = o.TotalAmount,
+            ShippingProvider = o.ShippingProvider,
+            TrackingNumber = o.TrackingNumber,
+            CustomerNote = o.CustomerNote,
+            Items = o.Items.Select(i => new OrderItemResponseDto
             {
-                OrderId = o.OrderId,
-                OrderNumber = o.OrderNumber,
-                OrderStatus = o.OrderStatus.ToString(),
-                PaymentStatus = o.PaymentStatus.ToString(),
-                PaymentMethod = o.PaymentMethod.ToString(),
-                ShippingAddress = o.ShippingAddress.ToAddressDto(),
-                BillingAddress = o.BillingAddress.ToAddressDto(),
-                Subtotal = o.Subtotal,
-                TaxAmount = o.TaxAmount,
-                DiscountAmount = o.DiscountAmount,
-                ShippingCost = o.ShippingCost,
-                TotalAmount = o.TotalAmount,
-                ShippingProvider = o.ShippingProvider,
-                TrackingNumber = o.TrackingNumber,
-                CustomerNote = o.CustomerNote,
-                Items = o.Items.Select(i => new OrderItemResponseDto
-                {
-                    OrderItemId = i.OrderItemId,
-                    ProductId = i.ProductId,
-                    ProductName = i.ProductName,
-                    ProductImage = i.Product?.ImageUrl ?? "",
-                    SellerProductId = i.SellerProductId,
-                    SellerStoreName = i.SellerStoreName,
-                    Quantity = i.Quantity,
-                    UnitPrice = i.UnitPrice,
-                    DiscountApplied = i.DiscountApplied,
-                    TaxRate = i.TaxRate,
-                    TotalPrice = i.TotalPrice,
-                    TrackingNumber = i.TrackingNumber
-                }).ToList(),
-                CreatedAt = o.CreatedAt,
-                ProcessedAt = o.ProcessedAt,
-                ShippedAt = o.ShippedAt,
-                DeliveredAt = o.DeliveredAt
-            }),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            }
-        });
+                OrderItemId = i.OrderItemId,
+                ProductId = i.ProductId,
+                ProductName = i.ProductName,
+                ProductImage = i.Product?.ImageUrl ?? "",
+                ListingId = i.SellerProductId,
+                SellerStoreName = i.SellerStoreName,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice,
+                DiscountApplied = i.DiscountApplied,
+                TaxRate = i.TaxRate,
+                TotalPrice = i.TotalPrice,
+                TrackingNumber = i.TrackingNumber
+            }).ToList(),
+            CreatedAt = o.CreatedAt,
+            ProcessedAt = o.ProcessedAt,
+            ShippedAt = o.ShippedAt,
+            DeliveredAt = o.DeliveredAt
+        }).ToList();
+
+        return Ok(PagedApiResponse<List<OrderResponseDto>>.SuccessResponse(
+            orderDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Siparişler başarıyla getirildi"
+        ));
     }
     // ID ile sipariş getir
     [HttpGet("{id:int}")]
@@ -244,7 +250,8 @@ public class OrderController : ControllerBase
 
         if (order.AppUserId != userId)
             throw new ForbiddenException("Bu siparişi görüntüleme yetkiniz yok.");
-        return Ok(new OrderResponseDto
+            
+        var orderDto = new OrderResponseDto
         {
             OrderId = order.OrderId,
             OrderNumber = order.OrderNumber,
@@ -267,7 +274,7 @@ public class OrderController : ControllerBase
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
                 ProductImage = i.Product?.ImageUrl ?? "",
-                SellerProductId = i.SellerProductId,
+                ListingId = i.SellerProductId,
                 SellerStoreName = i.SellerStoreName,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
@@ -280,7 +287,9 @@ public class OrderController : ControllerBase
             ProcessedAt = order.ProcessedAt,
             ShippedAt = order.ShippedAt,
             DeliveredAt = order.DeliveredAt
-        });
+        };
+        
+        return Ok(ApiResponse<OrderResponseDto>.SuccessResponse(orderDto, "Sipariş detayları getirildi"));
     }
     // Siparisi iptal et
     [HttpPost("{id:int}/cancel")]
@@ -315,7 +324,7 @@ public class OrderController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { Message = "Sipariş iptal edildi." });
+        return Ok(ApiResponse.SuccessResponse("Sipariş başarıyla iptal edildi."));
     }
     // Tum siparisleri listele admin
     [HttpGet("all")]
@@ -352,53 +361,52 @@ public class OrderController : ControllerBase
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
-        return Ok(new
+            
+        var orderDtos = orders.Select(o => new OrderResponseDto
         {
-            Data = orders.Select(o => new OrderResponseDto
+            OrderId = o.OrderId,
+            OrderNumber = o.OrderNumber,
+            OrderStatus = o.OrderStatus.ToString(),
+            PaymentStatus = o.PaymentStatus.ToString(),
+            PaymentMethod = o.PaymentMethod.ToString(),
+            ShippingAddress = o.ShippingAddress.ToAddressDto(),
+            BillingAddress = o.BillingAddress.ToAddressDto(),
+            Subtotal = o.Subtotal,
+            TaxAmount = o.TaxAmount,
+            DiscountAmount = o.DiscountAmount,
+            ShippingCost = o.ShippingCost,
+            TotalAmount = o.TotalAmount,
+            ShippingProvider = o.ShippingProvider,
+            TrackingNumber = o.TrackingNumber,
+            CustomerNote = o.CustomerNote,
+            Items = o.Items.Select(i => new OrderItemResponseDto
             {
-                OrderId = o.OrderId,
-                OrderNumber = o.OrderNumber,
-                OrderStatus = o.OrderStatus.ToString(),
-                PaymentStatus = o.PaymentStatus.ToString(),
-                PaymentMethod = o.PaymentMethod.ToString(),
-                ShippingAddress = o.ShippingAddress.ToAddressDto(),
-                BillingAddress = o.BillingAddress.ToAddressDto(),
-                Subtotal = o.Subtotal,
-                TaxAmount = o.TaxAmount,
-                DiscountAmount = o.DiscountAmount,
-                ShippingCost = o.ShippingCost,
-                TotalAmount = o.TotalAmount,
-                ShippingProvider = o.ShippingProvider,
-                TrackingNumber = o.TrackingNumber,
-                CustomerNote = o.CustomerNote,
-                Items = o.Items.Select(i => new OrderItemResponseDto
-                {
-                    OrderItemId = i.OrderItemId,
-                    ProductId = i.ProductId,
-                    ProductName = i.ProductName,
-                    ProductImage = i.Product?.ImageUrl ?? "",
-                    SellerProductId = i.SellerProductId,
-                    SellerStoreName = i.SellerStoreName,
-                    Quantity = i.Quantity,
-                    UnitPrice = i.UnitPrice,
-                    DiscountApplied = i.DiscountApplied,
-                    TaxRate = i.TaxRate,
-                    TotalPrice = i.TotalPrice,
-                    TrackingNumber = i.TrackingNumber
-                }).ToList(),
-                CreatedAt = o.CreatedAt,
-                ProcessedAt = o.ProcessedAt,
-                ShippedAt = o.ShippedAt,
-                DeliveredAt = o.DeliveredAt
-            }),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            }
-        });
+                OrderItemId = i.OrderItemId,
+                ProductId = i.ProductId,
+                ProductName = i.ProductName,
+                ProductImage = i.Product?.ImageUrl ?? "",
+                ListingId = i.SellerProductId,
+                SellerStoreName = i.SellerStoreName,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice,
+                DiscountApplied = i.DiscountApplied,
+                TaxRate = i.TaxRate,
+                TotalPrice = i.TotalPrice,
+                TrackingNumber = i.TrackingNumber
+            }).ToList(),
+            CreatedAt = o.CreatedAt,
+            ProcessedAt = o.ProcessedAt,
+            ShippedAt = o.ShippedAt,
+            DeliveredAt = o.DeliveredAt
+        }).ToList();
+        
+        return Ok(PagedApiResponse<List<OrderResponseDto>>.SuccessResponse(
+            orderDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Tüm siparişler başarıyla getirildi"
+        ));
     }
     // Siparis durum guncelle
         [HttpPut("{id:int}/status")]
@@ -428,7 +436,7 @@ public class OrderController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { Message = "Sipariş durumu güncellendi." });
+        return Ok(ApiResponse.SuccessResponse("Sipariş durumu başarıyla güncellendi."));
     }
     // Seller siparisleri listele
 [HttpGet("seller")]
@@ -457,52 +465,51 @@ public class OrderController : ControllerBase
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
-            return Ok(new
+            
+        var orderDtos = orders.Select(o => new OrderResponseDto
         {
-            Data = orders.Select(o => new OrderResponseDto
+            OrderId = o.OrderId,
+            OrderNumber = o.OrderNumber,
+            OrderStatus = o.OrderStatus.ToString(),
+            PaymentStatus = o.PaymentStatus.ToString(),
+            PaymentMethod = o.PaymentMethod.ToString(),
+            ShippingAddress = o.ShippingAddress.ToAddressDto(),
+            BillingAddress = o.BillingAddress.ToAddressDto(),
+            Subtotal = o.Items.Sum(i => i.TotalPrice), // Sadece seller'ın ürünlerinin toplamı
+            TaxAmount = o.Items.Sum(i => i.TotalPrice * i.TaxRate),
+            DiscountAmount = o.Items.Sum(i => i.DiscountApplied),
+            ShippingCost = 0m, // Kargo seller bazlı hesaplanabilir
+            TotalAmount = o.Items.Sum(i => i.TotalPrice),
+            ShippingProvider = o.ShippingProvider,
+            TrackingNumber = o.TrackingNumber,
+            CustomerNote = o.CustomerNote,
+            Items = o.Items.Select(i => new OrderItemResponseDto
             {
-                OrderId = o.OrderId,
-                OrderNumber = o.OrderNumber,
-                OrderStatus = o.OrderStatus.ToString(),
-                PaymentStatus = o.PaymentStatus.ToString(),
-                PaymentMethod = o.PaymentMethod.ToString(),
-                ShippingAddress = o.ShippingAddress.ToAddressDto(),
-                BillingAddress = o.BillingAddress.ToAddressDto(),
-                Subtotal = o.Items.Sum(i => i.TotalPrice), // Sadece seller'ın ürünlerinin toplamı
-                TaxAmount = o.Items.Sum(i => i.TotalPrice * i.TaxRate),
-                DiscountAmount = o.Items.Sum(i => i.DiscountApplied),
-                ShippingCost = 0m, // Kargo seller bazlı hesaplanabilir
-                TotalAmount = o.Items.Sum(i => i.TotalPrice),
-                ShippingProvider = o.ShippingProvider,
-                TrackingNumber = o.TrackingNumber,
-                CustomerNote = o.CustomerNote,
-                Items = o.Items.Select(i => new OrderItemResponseDto
-                {
-                    OrderItemId = i.OrderItemId,
-                    ProductId = i.ProductId,
-                    ProductName = i.ProductName,
-                    ProductImage = i.Product?.ImageUrl ?? "",
-                    SellerProductId = i.SellerProductId,
-                    SellerStoreName = i.SellerStoreName,
-                    Quantity = i.Quantity,
-                    UnitPrice = i.UnitPrice,
-                    DiscountApplied = i.DiscountApplied,
-                    TaxRate = i.TaxRate,
-                    TotalPrice = i.TotalPrice,
-                    TrackingNumber = i.TrackingNumber
-                }).ToList(),
-                CreatedAt = o.CreatedAt,
-                ProcessedAt = o.ProcessedAt,
-                ShippedAt = o.ShippedAt,
-                DeliveredAt = o.DeliveredAt
-            }),
-            Pagination = new
-            {
-                CurrentPage = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            }
-        });
+                OrderItemId = i.OrderItemId,
+                ProductId = i.ProductId,
+                ProductName = i.ProductName,
+                ProductImage = i.Product?.ImageUrl ?? "",
+                ListingId = i.SellerProductId,
+                SellerStoreName = i.SellerStoreName,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice,
+                DiscountApplied = i.DiscountApplied,
+                TaxRate = i.TaxRate,
+                TotalPrice = i.TotalPrice,
+                TrackingNumber = i.TrackingNumber
+            }).ToList(),
+            CreatedAt = o.CreatedAt,
+            ProcessedAt = o.ProcessedAt,
+            ShippedAt = o.ShippedAt,
+            DeliveredAt = o.DeliveredAt
+        }).ToList();
+        
+        return Ok(PagedApiResponse<List<OrderResponseDto>>.SuccessResponse(
+            orderDtos,
+            page,
+            pageSize,
+            totalCount,
+            "Satıcı siparişleri başarıyla getirildi"
+        ));
     }
 }
