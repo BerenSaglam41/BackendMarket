@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Logging;
+using System.Text.Json.Serialization;
 
 using MarketBackend.Data;
 using MarketBackend.Models;
@@ -12,6 +13,13 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Enums'un JSON'da string olarak serileştirilmesi
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 // Development için hata detaylarını göster
 if (builder.Environment.IsDevelopment())
@@ -65,7 +73,9 @@ using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<AppRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var DbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     await RoleSeeder.SeedRoleAsync(roleManager, userManager);
+    await CatalogSeeder.SeedBrandsAndCategoriesAsync(DbContext);
 }
 
 // ⭐ Global Exception Handling Middleware (EN BAŞTA!)

@@ -15,17 +15,40 @@ public class PaymentInitiateDtoValidator : AbstractValidator<PaymentInitiateDto>
         // Inline teslimat adresi validasyonu
         When(x => x.ShippingAddress != null, () =>
         {
+            RuleFor(x => x.ShippingAddress!.ContactName)
+                .NotEmpty()
+                .WithMessage("İletişim adı zorunludur.")
+                .MaximumLength(100)
+                .WithMessage("İletişim adı en fazla 100 karakter olabilir.");
             RuleFor(x => x.ShippingAddress!.ContactPhone)
                 .Matches(@"^0[0-9]{10}$")
                 .WithMessage("Geçerli bir telefon numarası giriniz (05xxxxxxxxx formatında 11 haneli).");
-
+            RuleFor(x => x.ShippingAddress!.Country)
+                .NotEmpty()
+                .WithMessage("Ülke zorunludur.");
+            RuleFor(x => x.ShippingAddress!.City)
+                .NotEmpty()
+                .WithMessage("Şehir zorunludur.");
+            RuleFor(x => x.ShippingAddress!.District)
+                .NotEmpty()
+                .WithMessage("İlçe zorunludur.");
+            RuleFor(x => x.ShippingAddress!.Neighborhood)
+                .NotEmpty()
+                .WithMessage("Mahalle zorunludur.");
             RuleFor(x => x.ShippingAddress!.PostalCode)
                 .Matches(@"^[0-9]{5}$")
                 .WithMessage("Geçerli bir posta kodu giriniz (5 haneli).");
 
             RuleFor(x => x.ShippingAddress!.FullAddress)
                 .MinimumLength(10)
-                .WithMessage("Tam adres en az 10 karakter olmalıdır.");
+                .WithMessage("Tam adres en az 10 karakter olmalıdır.")
+                .MaximumLength(300)
+                .WithMessage("Tam adres en fazla 300 karakter olabilir.")
+                .NotEmpty()
+                .WithMessage("Açık adres zorunludur.");
+            RuleFor(x => x.ShippingAddress!.AddressType)
+                .IsInEnum()
+                .WithMessage("Geçerli bir adres türü seçiniz.");
         });
 
         // Inline fatura adresi validasyonu

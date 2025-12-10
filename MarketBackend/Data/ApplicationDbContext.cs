@@ -16,7 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<ProductPending> ProductPendings { get; set; }
     public DbSet<Listing> Listings { get; set; }
     public DbSet<ProductViewHistory> ProductViewHistories { get; set; }
-
+    public DbSet<SellerApplication> SellerApplications { get; set; }
     public DbSet<Category> Categories { get; set; }
     public DbSet<Brand> Brands { get; set; }
     public DbSet<Review> Reviews { get; set; }
@@ -206,6 +206,11 @@ public class ApplicationDbContext : IdentityDbContext<AppUser, AppRole, string>
             .WithMany()
             .HasForeignKey(pvh => pvh.ListingId)
             .OnDelete(DeleteBehavior.Cascade);
-
+        // ProductViewHistory - AppUser relationship
+        builder.Entity<SellerApplication>()
+            .HasOne(sa => sa.AppUser)
+            .WithMany(u => u.SellerApplications)
+            .HasForeignKey(sa => sa.AppUserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

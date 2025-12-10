@@ -34,7 +34,7 @@ public class AppUser : IdentityUser
     public ICollection<Order> Orders { get; set; } = new List<Order>();
     public ShoppingCart? ShoppingCart { get; set; }         
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
-    
+    public ICollection<SellerApplication> SellerApplications { get; set; } = new List<SellerApplication>();
     // Seller ilişkileri
     public ICollection<Listing> Listings { get; set; } = new List<Listing>();
     public ICollection<ProductPending> ProductPendings { get; set; } = new List<ProductPending>();

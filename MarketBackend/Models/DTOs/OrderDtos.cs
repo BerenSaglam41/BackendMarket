@@ -28,6 +28,7 @@ public class ShippingAddressDto
     public string Neighborhood { get; set; } = string.Empty;
     public string FullAddress { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
+    public AddressType? AddressType { get; set; }
 }
 
 // Billing Address için minimal bilgiler

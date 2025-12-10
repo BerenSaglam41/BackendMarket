@@ -112,69 +112,8 @@ public class AuthController : ControllerBase
             response,
             "Giriş başarılı. Hoş geldiniz!"
         ));
-    }
-
-    /// <summary>
-    /// Mevcut müşteriyi Seller'a yükselt
-    /// POST /api/Auth/become-seller
-    /// </summary>
-    [HttpPost("become-seller")]
-    [Authorize]
-    public async Task<IActionResult> BecomeSeller(BecomeSellerDto dto)
-    {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
-            throw new UnauthorizedException("Geçerli kullanıcı bulunamadı.");
-
-        // Zaten Seller mı?
-        var roles = await _userManager.GetRolesAsync(user);
-        if (roles.Contains("Seller"))
-            throw new BadRequestException("Zaten bir satıcı hesabınız var.");
-
-        // Store slug benzersiz mi?
-        var existingStore = await _userManager.Users
-            .AnyAsync(u => u.StoreSlug == dto.StoreSlug && u.Id != user.Id);
-        if (existingStore)
-            throw new ConflictException($"'{dto.StoreSlug}' mağaza URL'si zaten kullanılıyor.");
-
-        // Mağaza bilgilerini güncelle
-        user.StoreName = dto.StoreName;
-        user.StoreSlug = dto.StoreSlug;
-        user.StoreLogoUrl = dto.StoreLogoUrl;
-        user.StoreDescription = dto.StoreDescription;
-        user.StorePhone = dto.StorePhone;
-        user.IsStoreVerified = false;  // Admin onayı bekleyecek
-
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-            throw new BadRequestException("Kullanıcı bilgileri güncellenemedi.", updateResult.Errors.Select(e => e.Description).ToList());
-
-        // Tüm mevcut rolleri kaldır ve sadece Seller rolü ekle
-        var removeResult = await _userManager.RemoveFromRolesAsync(user, roles);
-        if (!removeResult.Succeeded)
-            throw new BadRequestException("Roller kaldırılamadı.", removeResult.Errors.Select(e => e.Description).ToList());
+    }      
         
-        await _userManager.AddToRoleAsync(user, "Seller");
-
-        // Yeni token oluştur (roller değişti)
-        var token = await _tokenService.CreateTokenAsync(user);
-
-        return Ok(ApiResponse<object>.SuccessResponse(
-            new
-            {
-                token = token,
-                expiresAt = DateTime.UtcNow.AddHours(24),
-                store = new
-                {
-                    storeName = user.StoreName,
-                    storeSlug = user.StoreSlug,
-                    isVerified = user.IsStoreVerified
-                }
-            },
-            "Tebrikler! Artık bir satıcısınız."
-        ));
-    }
-
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me()
