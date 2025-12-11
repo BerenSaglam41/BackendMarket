@@ -49,6 +49,19 @@ builder.Services.AddIdentityCore<AppUser>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// CORS
+builder.Services.AddCors(
+    options =>
+    {
+        options.AddPolicy("AllowFrontend", policy =>
+        {
+            policy.AllowAnyHeader()
+                   .AllowAnyMethod()
+                   .AllowAnyOrigin();
+        });
+    });    
+
+
 // 4) FluentValidation – Yeni yöntem
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddFluentValidationClientsideAdapters();
@@ -67,6 +80,9 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
 var app = builder.Build();
+
+// CORS
+app.UseCors("AllowFrontend");
 
 // Roller ve admin kullanıcı seed ediliyor
 using (var scope = app.Services.CreateScope())

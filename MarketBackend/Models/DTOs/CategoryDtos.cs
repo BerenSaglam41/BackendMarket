@@ -54,3 +54,14 @@ public class CategoryUpdateDto
     public string MetaTitle { get; set; }
     public string MetaDescription { get; set; }
 }
+public class CategoryTreeDto
+{
+    public int CategoryId { get; set; }
+    public string Name { get; set; }
+    public string Slug { get; set; }
+    public string ImageUrl { get; set; }
+    public int OrderIndex { get; set; }
+    public bool IsActive { get; set; }
+
+    public List<CategoryTreeDto> Children { get; set; } = new();
+}

@@ -150,6 +150,42 @@ public class CategoryController : ControllerBase
             "Kategori başarıyla silindi."
         ));
     }
+    [HttpGet("tree")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetTree()
+    {
+        var categories = await _context.Categories
+            .Include(c => c.SubCategories)
+            .Where(c => c.IsActive )
+            .OrderBy(c => c.OrderIndex)
+            .ToListAsync();
+        var root = categories
+            .Where(c => c.ParentCategoryId == null)
+            .OrderBy(c => c.OrderIndex)
+            .ToList();
+        CategoryTreeDto BuildTree(Category c)
+        {
+            return new CategoryTreeDto
+            {
+                CategoryId = c.CategoryId,
+                Name = c.Name,
+                Slug = c.Slug,
+                ImageUrl = c.ImageUrl,
+                OrderIndex = c.OrderIndex,
+                IsActive = c.IsActive,
+                Children = c.SubCategories
+                    .Where(sc => sc.IsActive)
+                    .OrderBy(sc => sc.OrderIndex)
+                    .Select(sc => BuildTree(sc))
+                    .ToList()
+            };
+        }
+        var tree = root.Select(c => BuildTree(c)).ToList();
+        return Ok(ApiResponse<List<CategoryTreeDto>>.SuccessResponse(
+            tree,
+            "Kategori ağacı başarıyla getirildi."
+        ));
+    }
     public static CategoryResponseDto ToCategoryDto(Category c)
     {
         return new CategoryResponseDto

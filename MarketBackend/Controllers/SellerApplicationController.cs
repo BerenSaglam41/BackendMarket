@@ -1,4 +1,3 @@
-
 using MarketBackend.Data;
 using MarketBackend.Models;
 using MarketBackend.Models.Common;
@@ -25,6 +24,8 @@ public class SellerApplicationController : ControllerBase
     public async Task<IActionResult> Create(SellerApplicationCreateDto dto)
     {
         var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
         var hasActive = await _context.SellerApplications
             .AnyAsync(x => x.AppUserId == user.Id && (
                 x.Status == SellerApplicationStatus.Pending ||
@@ -55,7 +56,8 @@ public class SellerApplicationController : ControllerBase
     public async Task<IActionResult> GetMyApplication()
     {
         var user = await _userManager.GetUserAsync(User);
-
+        if (user == null)
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
         var apps = await _context.SellerApplications
             .Where(x => x.AppUserId == user.Id)
             .OrderByDescending(x => x.CreatedAt)
@@ -67,6 +69,8 @@ public class SellerApplicationController : ControllerBase
     public async Task<IActionResult> Status()
     {
         var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
         var app = await _context.SellerApplications
             .Where(x => x.AppUserId == user.Id)
             .OrderByDescending(x => x.CreatedAt)
@@ -121,11 +125,13 @@ public class SellerApplicationController : ControllerBase
             throw new NotFoundException("Satıcı başvurusu bulunamadı.");
         var adminId = _userManager.GetUserId(User);
         var user = app.AppUser;
+        if (user == null)
+            throw new NotFoundException("Başvuru sahibi kullanıcı bulunamadı.");
         user.StoreName = app.StoreName;
         user.StoreSlug = app.StoreSlug;
         user.StoreDescription = app.StoreDescription;
         user.StorePhone = app.StorePhone;
-        user.StoreLogoUrl = app.StoreLogoUrl;
+        user.StoreLogoUrl = app.StoreLogoUrl ?? string.Empty;
         user.IsStoreVerified = true;
         await _userManager.AddToRoleAsync(user, "Seller");
         await _userManager.RemoveFromRoleAsync(user, "Customer");
@@ -186,7 +192,7 @@ public class SellerApplicationController : ControllerBase
             StoreSlug = x.StoreSlug,
             StoreDescription = x.StoreDescription,
             StorePhone = x.StorePhone,
-            StoreLogoUrl = x.StoreLogoUrl,
+            StoreLogoUrl = x.StoreLogoUrl ?? string.Empty,
             Status = x.Status,
             AdminNote = x.AdminNote,
             CreatedAt = x.CreatedAt,
