@@ -1,21 +1,21 @@
-import { create } from 'zustand';
-import api from '../lib/axios';
+import { create } from "zustand";
+import { fetchCategoryTree } from "../services/CategoryService";
 
 export const useCategoryStore = create((set) => ({
-    tree : [],
-    loading : false,
-    error : null,
-    fetchTree : async () => {
-        try {
-            set({loading: true, error: null});
-            const response = await api.get('/category/tree');
-            set({tree: response.data.data, loading: false, error: response.errors || null});
-        }
-        catch (err){
-            set({
-                loading: false,
-                error: err.message || 'Kategori Yuklenemedi'
-            })
-        }
+  tree: [],
+  loading: false,
+  error: null,
+
+  fetchTree: async () => {
+    set({ loading: true, error: null });
+    try {
+      const data = await fetchCategoryTree();
+      set({ tree: data, loading: false });
+    } catch (err) {
+      set({
+        loading: false,
+        error: err?.response?.data?.message || "Kategori yüklenemedi",
+      });
     }
-}))
+  },
+}));

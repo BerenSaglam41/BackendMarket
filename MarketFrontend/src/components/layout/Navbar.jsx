@@ -5,24 +5,27 @@ import {
   ShoppingCartIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
+import { useUIStore } from "../../store/uiStore";
+import { useCartStore } from "../../store/cartStore";
+import { useAuthStore } from "../../store/authStore";
 
 export default function Navbar() {
   const [search, setSearch] = useState("");
 
-  // TODO: Auth store'dan çekilecek (şimdilik sahte)
-  const isLoggedIn = false;
-  const user = { firstName: "Beren" }; // Örnek
+  const totalQuantity = useCartStore((s) => s.totalQuantity());
+  const toggleCart = useUIStore((s) => s.toggleCart);
 
+  const { isAuthenticated, user, logout } = useAuthStore();
   return (
     <header className="w-full shadow-md bg-white sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-6">
 
         {/* LOGO */}
-        <Link to="/" className="text-2xl font-extrabold text-orange-500">
+        <Link to="/" className="font-bold text-xl text-orange-500">
           MarketApp
         </Link>
 
-        {/* SEARCH BAR */}
+        {/* SEARCH */}
         <div className="flex-1">
           <div className="flex items-center bg-gray-100 rounded-lg overflow-hidden">
             <input
@@ -38,28 +41,46 @@ export default function Navbar() {
           </div>
         </div>
 
+        {/* CART */}
+        <button
+          onClick={toggleCart}
+          className="relative p-2 rounded-full hover:bg-gray-100 transition"
+        >
+          <ShoppingCartIcon className="w-6 h-6 text-gray-700" />
+          {totalQuantity > 0 && (
+            <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
+              {totalQuantity}
+            </span>
+          )}
+        </button>
+
         {/* ACCOUNT */}
-        {!isLoggedIn ? (
+        {!isAuthenticated ? (
           <div className="flex items-center gap-3">
-            <Link to="/login" className="font-medium hover:text-orange-500">
+            <Link
+              to="/auth?mode=login"
+              className="font-medium hover:text-orange-500"
+            >
               Giriş Yap
             </Link>
             <Link
-              to="/register"
+              to="/auth?mode=register"
               className="font-medium bg-orange-500 text-white px-3 py-1 rounded-md hover:bg-orange-600 transition"
             >
               Üye Ol
             </Link>
           </div>
         ) : (
-          <div className="relative group cursor-pointer">
-            <div className="flex items-center gap-2">
+          <div className="relative group">
+            <div className="flex items-center gap-2 cursor-pointer">
               <UserIcon className="h-6 w-6 text-gray-600" />
-              <span className="font-medium">{user.firstName}</span>
+              <span className="font-medium">
+                {user?.firstName}
+              </span>
             </div>
 
             {/* DROPDOWN */}
-            <div className="absolute right-0 mt-3 w-40 bg-white shadow-md rounded-md hidden group-hover:block">
+            <div className="absolute right-0 mt-3 w-44 bg-white shadow-lg rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
               <Link
                 to="/profile"
                 className="block px-4 py-2 hover:bg-gray-100"
@@ -72,20 +93,16 @@ export default function Navbar() {
               >
                 Siparişlerim
               </Link>
-              <button className="w-full text-left px-4 py-2 hover:bg-gray-100">
+              <button
+                onClick={logout}
+                className="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600"
+              >
                 Çıkış Yap
               </button>
             </div>
           </div>
         )}
 
-        {/* CART */}
-        <Link to="/cart" className="relative">
-          <ShoppingCartIcon className="h-7 w-7 text-gray-700" />
-          <span className="absolute -top-2 -right-2 bg-orange-500 text-white rounded-full text-xs px-1">
-            2
-          </span>
-        </Link>
       </div>
     </header>
   );
