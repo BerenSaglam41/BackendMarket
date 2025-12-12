@@ -1,8 +1,13 @@
 import { create } from "zustand";
 import { toast } from "react-toastify";
-import { addToCartApi, fetchCartApi } from "../services/CartService";
+import {
+  addToCartApi,
+  fetchCartApi,
+  updateCartItemQtyApi,
+  removeCartItemApi,
+} from "../services/CartService";
 import { useAuthStore } from "./authStore";
-import api from "../lib/axios";
+
 const CART_STORAGE_KEY = "market_cart";
 
 /* ===== LOCAL STORAGE (GUEST) ===== */
@@ -23,7 +28,10 @@ export const useCartStore = create((set, get) => ({
   items: loadCartFromStorage(),
   summary: null,
 
-  /* ===== DERIVED ===== */
+  /* =========================
+     DERIVED
+     ========================= */
+
   totalQuantity: () =>
     get().items.reduce((sum, item) => sum + item.quantity, 0),
 
@@ -33,13 +41,13 @@ export const useCartStore = create((set, get) => ({
       .reduce((sum, item) => sum + item.totalPrice, 0),
 
   /* =========================
-     TEK GİRİŞ NOKTASI
+     ADD TO CART (TEK GİRİŞ)
      ========================= */
 
   addToCart: async (listing, quantity = 1) => {
     const { isAuthenticated } = useAuthStore.getState();
 
-    // ===== AUTH KULLANICI =====
+    /* ===== AUTH ===== */
     if (isAuthenticated) {
       await addToCartApi(listing.listingId, quantity);
       await get().fetchCartFromBackend();
@@ -47,7 +55,7 @@ export const useCartStore = create((set, get) => ({
       return;
     }
 
-    // ===== GUEST =====
+    /* ===== GUEST ===== */
     const items = [...get().items];
     const existing = items.find((i) => i.listingId === listing.listingId);
 
@@ -80,26 +88,27 @@ export const useCartStore = create((set, get) => ({
     saveCartToStorage(items);
     toast.success(`${listing.productName} sepete eklendi`);
   },
-  updateQuantity: async (listingId, newQuantity) => {
-    const { isAuthenticated } = useAuthStore.getState();
 
-    // min 1 kuralı
+  /* =========================
+     QUANTITY UPDATE
+     ========================= */
+
+  updateQuantity: async (listingId, newQuantity) => {
     if (newQuantity < 1) return;
 
+    const { isAuthenticated } = useAuthStore.getState();
+
+    /* ===== AUTH ===== */
     if (isAuthenticated) {
-      // backend cartItemId ile çalışıyor
       const item = get().items.find((i) => i.listingId === listingId);
       if (!item) return;
 
-      await api.put(`/cart/${item.cartItemId}`, {
-        quantity: newQuantity,
-      });
-
+      await updateCartItemQtyApi(item.cartItemId, newQuantity);
       await get().fetchCartFromBackend();
       return;
     }
 
-    // ===== GUEST =====
+    /* ===== GUEST ===== */
     const items = [...get().items];
     const item = items.find((i) => i.listingId === listingId);
     if (!item) return;
@@ -110,24 +119,32 @@ export const useCartStore = create((set, get) => ({
     set({ items });
     saveCartToStorage(items);
   },
+
+  /* =========================
+     REMOVE ITEM
+     ========================= */
+
   removeFromCart: async (listingId) => {
     const { isAuthenticated } = useAuthStore.getState();
 
+    /* ===== AUTH ===== */
     if (isAuthenticated) {
       const item = get().items.find((i) => i.listingId === listingId);
       if (!item) return;
 
-      await api.delete(`/cart/${item.cartItemId}`);
+      await removeCartItemApi(item.cartItemId);
       await get().fetchCartFromBackend();
       return;
     }
+
+    /* ===== GUEST ===== */
     const items = get().items.filter((i) => i.listingId !== listingId);
     set({ items });
     saveCartToStorage(items);
   },
 
   /* =========================
-     BACKEND
+     BACKEND SYNC
      ========================= */
 
   fetchCartFromBackend: async () => {
