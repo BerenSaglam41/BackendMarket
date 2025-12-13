@@ -10,6 +10,7 @@ export const fetchListingsByCategory = async ({
         page,
         pageSize,
       },
+        silent: true,
     });
     return res.data;
 };
@@ -25,6 +26,7 @@ export const fetchListings = async ({
     pageSize = 20,
 }) => {
     const res = await api.get("/listing", {
+        silent: true,
         params : {
             categoryId,
             brandId,
@@ -34,12 +36,12 @@ export const fetchListings = async ({
             sortBy,
             page,
             pageSize,
-        },
-    });
+        }
+        });
     return res.data;
 }
 export const fetchListingDetail = async (slugOrId) => {
-    const res = await api.get(`/listing/${slugOrId}`);
+    const res = await api.get(`/listing/${slugOrId}`,{ silent: true });
     return res.data;
 }
    

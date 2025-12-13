@@ -1,50 +1,42 @@
 import { create } from "zustand";
 import api from "../lib/axios";
-import { loginRequest } from "../services/AuthService";
+import { fetchMeRequest, loginRequest } from "../services/AuthService";
 import { useCartStore } from "./cartStore";
 
 const TOKEN_KEY = "market_token";
-const USER_KEY = "market_user";
-
 const loadToken = () => localStorage.getItem(TOKEN_KEY);
-const loadUser = () => {
-  const data = localStorage.getItem(USER_KEY);
-  return data ? JSON.parse(data) : null;
-};
 
 export const useAuthStore = create((set) => ({
   token: loadToken(),
-  user: loadUser(),
+  user: null,
   isAuthenticated: !!loadToken(),
 
   /* ===== LOGIN ===== */
   login: async (email, password) => {
     const data = await loginRequest(email, password);
-
-    const { token, firstName, lastName, email: userEmail } = data;
+    const { token } = data;
 
     localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(
-      USER_KEY,
-      JSON.stringify({ firstName, lastName, email: userEmail })
-    );
-
     api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
     set({
       token,
-      user: { firstName, lastName, email: userEmail },
       isAuthenticated: true,
     });
 
-    // 🔥 GUEST → AUTH CART SYNC
+    await useAuthStore.getState().fetchMe();
     await useCartStore.getState().syncLocalCartToBackend();
+  },
+
+  /* ===== FETCH ME ===== */
+  fetchMe: async () => {
+    const res = await fetchMeRequest();
+    set({ user: res.data });
   },
 
   /* ===== LOGOUT ===== */
   logout: () => {
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
     delete api.defaults.headers.common["Authorization"];
 
     set({
@@ -57,13 +49,17 @@ export const useAuthStore = create((set) => ({
   },
 
   /* ===== INIT ===== */
-  initAuth: () => {
+  initAuth: async () => {
     const token = loadToken();
-    const user = loadUser();
+    if (!token) return;
 
-    if (token) {
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      set({ token, user, isAuthenticated: true });
-    }
+    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+    set({
+      token,
+      isAuthenticated: true,
+    });
+
+    await useAuthStore.getState().fetchMe();
   },
 }));

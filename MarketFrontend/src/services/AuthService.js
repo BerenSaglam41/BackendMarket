@@ -14,3 +14,8 @@ export const registerRequest = async (payload) => {
   const res = await api.post("/auth/register", payload);
   return res.data.data;
 };
+
+export const fetchMeRequest = async ()=>{
+  const res = await api.get("/auth/me",{ silent: true });
+  return res.data;
+};

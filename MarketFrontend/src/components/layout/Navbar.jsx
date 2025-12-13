@@ -10,13 +10,14 @@ import { useCartStore } from "../../store/cartStore";
 import { useAuthStore } from "../../store/authStore";
 
 export default function Navbar() {
+  const { isAuthenticated, user, logout } = useAuthStore();
   const [search, setSearch] = useState("");
 
   const totalQuantity = useCartStore((s) => s.totalQuantity());
   const toggleCart = useUIStore((s) => s.toggleCart);
-
-  const { isAuthenticated, user, logout } = useAuthStore();
-  return (
+  const isAdmin = user?.roles?.includes("Admin");
+  const isSeller = user?.roles?.includes("Seller");
+    return (
     <header className="w-full shadow-md bg-white sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-6">
 

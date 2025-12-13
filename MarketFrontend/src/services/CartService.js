@@ -13,7 +13,7 @@ export const addToCartApi = (listingId, quantity) => {
 };
 
 export const fetchCartApi = () => {
-  return api.get("/cart");
+  return api.get("/cart",{ silent: true });
 };
 
 export const updateCartItemQtyApi = (cartItemId, quantity) => {
