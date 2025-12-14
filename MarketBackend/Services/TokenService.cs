@@ -55,6 +55,10 @@ public class TokenService : ITokenService
             claims.Add(new Claim(ClaimTypes.Role, role));
         }
         
+        // Kullanıcının aktiflik ve ban durumlarını ekle
+        claims.Add(new Claim("IsActive", user.IsActive.ToString()));
+        claims.Add(new Claim("IsBanned", user.IsBanned.ToString()));
+
         // 4) Güvenlik anahtarı & imzalama
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

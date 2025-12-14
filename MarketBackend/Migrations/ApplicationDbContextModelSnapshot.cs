@@ -119,6 +119,15 @@ namespace MarketBackend.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("BanReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("BannedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BannedByAdminId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("TEXT");
@@ -144,6 +153,9 @@ namespace MarketBackend.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsBanned")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsStoreVerified")

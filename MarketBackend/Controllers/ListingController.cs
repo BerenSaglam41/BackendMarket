@@ -45,18 +45,18 @@ public class ListingController : ControllerBase
             .Include(sp => sp.Product)
                 .ThenInclude(p => p.Brand)
             .Include(sp => sp.Seller)
-            .Where(sp => sp.IsActive && sp.Stock > 0)
+            .Where(sp => sp.IsActive && sp.Stock > 0 && sp.Seller.IsActive && !sp.Seller.IsBanned) // Added seller banned check
             .AsQueryable();
 
         // Filters
         if (categoryId.HasValue)
         {
-            query = query.Where(sp => sp.Product.CategoryId == categoryId.Value);
+            query = query.Where(sp => sp.Product.CategoryId == categoryId.Value && sp.Seller.IsActive); // Added seller active check
         }
 
         if (brandId.HasValue)
         {
-            query = query.Where(sp => sp.Product.BrandId == brandId.Value);
+            query = query.Where(sp => sp.Product.BrandId == brandId.Value && sp.Seller.IsActive); // Added seller active check
         }
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
@@ -66,7 +66,7 @@ public class ListingController : ControllerBase
                 sp.Product.Name.ToLower().Contains(term) || 
                 sp.Product.Description.ToLower().Contains(term) ||
                 sp.Product.Brand.Name.ToLower().Contains(term) ||
-                sp.Seller.StoreName.ToLower().Contains(term));
+                sp.Seller.StoreName.ToLower().Contains(term) && sp.Seller.IsActive); // Added seller active check
         }
 
         // Get all matching records first (without price filter and sorting)
@@ -200,7 +200,7 @@ public class ListingController : ControllerBase
             .Where(sp => sp.ProductId == listing.ProductId && 
                          sp.ListingId != listing.ListingId &&
                          sp.IsActive &&
-                         sp.Stock > 0)
+                         sp.Stock > 0 && sp.Seller.IsActive && !sp.Seller.IsBanned) // Added seller active check
             .ToListAsync();
         
         var otherSellers = otherSellersQuery
@@ -230,7 +230,7 @@ public class ListingController : ControllerBase
             .Where(sp => sp.Product.CategoryId == listing.Product.CategoryId &&
                          sp.ProductId != listing.ProductId &&
                          sp.IsActive &&
-                         sp.Stock > 0)
+                         sp.Stock > 0 && sp.Seller.IsActive && !sp.Seller.IsBanned) // Added seller active check
             .OrderByDescending(sp => sp.CreatedAt)
             .Take(8)
             .Select(sp => new ListingResponseDto
@@ -314,7 +314,7 @@ public class ListingController : ControllerBase
 
         var sellersQuery = await _context.Listings
             .Include(sp => sp.Seller)
-            .Where(sp => sp.ProductId == productId && sp.IsActive && sp.Stock > 0)
+            .Where(sp => sp.ProductId == productId && sp.IsActive && sp.Stock > 0 && sp.Seller.IsActive && !sp.Seller.IsBanned) // Added seller active check
             .ToListAsync();
         
         var sellers = sellersQuery
@@ -394,7 +394,7 @@ public class ListingController : ControllerBase
                     .Where(sp => viewedCategories.Contains(sp.Product.CategoryId) &&
                                  !viewedProducts.Contains(sp.ProductId) &&
                                  sp.IsActive &&
-                                 sp.Stock > 0)
+                                 sp.Stock > 0 && sp.Seller.IsActive && !sp.Seller.IsBanned) // Added seller active check
                     .OrderByDescending(sp => sp.DiscountPercentage)
                     .Take(limit)
                     .Select(sp => new ListingResponseDto
@@ -424,7 +424,7 @@ public class ListingController : ControllerBase
                 .Include(sp => sp.Product)
                     .ThenInclude(p => p.Brand)
                 .Include(sp => sp.Seller)
-                .Where(sp => sp.IsActive && sp.Stock > 0);
+                .Where(sp => sp.IsActive && sp.Stock > 0 && sp.Seller.IsActive && !sp.Seller.IsBanned); // Added seller active check
 
             if (categoryId.HasValue)
             {

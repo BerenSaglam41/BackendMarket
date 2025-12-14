@@ -14,6 +14,10 @@ public class AppUser : IdentityUser
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsBanned { get; set; } = false; 
+    public string? BanReason { get; set; }
+    public DateTime? BannedAt { get; set; }
+    public string? BannedByAdminId { get; set; }
     public DateTime? LastLogin { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

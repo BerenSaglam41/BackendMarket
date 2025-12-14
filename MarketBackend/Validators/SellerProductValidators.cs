@@ -58,14 +58,13 @@ public class SellerProductUpdateValidator : AbstractValidator<SellerProductUpdat
     public SellerProductUpdateValidator()
     {
         RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Ürün adı zorunludur.")
             .MaximumLength(200).WithMessage("Ürün adı en fazla 200 karakter olabilir.");
 
         RuleFor(x => x.Slug)
-            .NotEmpty().WithMessage("Slug zorunludur.")
             .MaximumLength(220).WithMessage("Slug en fazla 220 karakter olabilir.")
             .Matches(@"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-            .WithMessage("Slug sadece küçük harf, rakam ve tire içerebilir.");
+            .WithMessage("Slug sadece küçük harf, rakam ve tire içerebilir.")
+            .When(x => !string.IsNullOrEmpty(x.Slug));
 
         RuleFor(x => x.Description)
             .MaximumLength(5000).WithMessage("Açıklama en fazla 5000 karakter olabilir.");

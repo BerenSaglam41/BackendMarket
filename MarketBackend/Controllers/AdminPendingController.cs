@@ -134,7 +134,7 @@ public class AdminPendingController : ControllerBase
         // Slug kontrolü (hem Products hem ProductPendings tablosunda)
         bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == ProductSlug);
         bool slugExistsInPending = await _context.ProductPendings
-            .AnyAsync(p => p.Slug == ProductSlug && p.ProductPendingId != pending.ProductPendingId);
+            .AnyAsync(p => p.Slug == ProductSlug && p.ProductPendingId != pending.ProductPendingId && p.Status != PendingStatus.Rejected);
 
         if (slugExistsInProducts || slugExistsInPending)
             throw new ConflictException($"'{ProductSlug}' slug'ı zaten kullanılıyor.");

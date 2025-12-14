@@ -21,7 +21,7 @@ public class ProductController : ControllerBase
         _context = context;
         _userManager = userManager;
     }
-    
+
     /// <summary>
     /// Tüm aktif ürünleri listele (en düşük fiyatla birlikte) - SADECE ADMIN VE SELLER
     /// GET /api/Product
@@ -33,6 +33,7 @@ public class ProductController : ControllerBase
         [FromQuery] int? categoryId = null,
         [FromQuery] string? search = null,
         [FromQuery] string? createdBySellerId = null,
+        [FromQuery] bool? isActive = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
@@ -40,39 +41,39 @@ public class ProductController : ControllerBase
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 100) pageSize = 100; // Max limit
-        
+
         var query = _context.Products
             .Include(p => p.Brand)
             .Include(p => p.Category)
             .Include(p => p.CreatedBySeller)
-            .Include(p => p.Listings.Where(sp => sp.IsActive))
-            .Where(p => p.IsActive)
             .AsQueryable();
-        
+
         // Filtreler
         if (brandId.HasValue)
             query = query.Where(p => p.BrandId == brandId);
-        
+        if (isActive.HasValue)
+            query = query.Where(p => p.IsActive == isActive.Value);
+
         if (categoryId.HasValue)
             query = query.Where(p => p.CategoryId == categoryId);
-        
+
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(p => p.Name.Contains(search) || p.Description!.Contains(search));
-        
+
         // Belirli seller'ın oluşturduğu ürünler
         if (!string.IsNullOrWhiteSpace(createdBySellerId))
             query = query.Where(p => p.CreatedBySellerId == createdBySellerId);
-        
+
         var totalCount = await query.CountAsync();
-        
+
         var products = await query
             .OrderByDescending(p => p.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
-        
+
         var productDtos = products.Select(p => ToListDto(p)).ToList();
-        
+
         return Ok(PagedApiResponse<List<ProductResponseDto>>.SuccessResponse(
             productDtos,
             page,
@@ -81,30 +82,34 @@ public class ProductController : ControllerBase
             "Ürünler başarıyla getirildi"
         ));
     }
-    
+
     /// <summary>
     /// Ürün detayı - Tüm satıcılarla birlikte
     /// GET /api/Product/{slug} - SADECE ADMIN VE SELLER
     /// </summary>
     [HttpGet("{slug}")]
     [Authorize(Roles = "Admin,Seller")]
-    public async Task<IActionResult> GetBySlug(string slug)
+    public async Task<IActionResult> GetBySlug(string slug, [FromQuery] bool includeInactive = false)
     {
-        var product = await _context.Products
+        var query = _context.Products
+            .IgnoreQueryFilters()
             .Include(p => p.Brand)
             .Include(p => p.Category)
             .Include(p => p.CreatedBySeller)
             .Include(p => p.Listings.Where(sp => sp.IsActive))
                 .ThenInclude(sp => sp.Seller)
-            .FirstOrDefaultAsync(p => p.Slug == slug && p.IsActive);
-        
+            .Where(p => p.Slug == slug);
+
+
+        var product = await query.FirstOrDefaultAsync();
+
         if (product == null)
             throw new NotFoundException($"'{slug}' slug'ına sahip ürün bulunamadı.");
 
         var productDto = ToDetailDto(product);
         return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(productDto, "Ürün detayı başarıyla getirildi"));
     }
-    
+
     /// <summary>
     /// Ürün oluştur - Sadece Admin (fiyat/stok yok, sadece tanım)
     /// POST /api/Product
@@ -117,7 +122,7 @@ public class ProductController : ControllerBase
         bool slugExists = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
         if (slugExists)
             throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor.");
-        
+
         // Marka Var mi (opsiyonel)
         if (dto.BrandId.HasValue)
         {
@@ -133,7 +138,7 @@ public class ProductController : ControllerBase
             if (!categoryExists)
                 throw new NotFoundException($"ID: {dto.CategoryId} olan kategori bulunamadı.");
         }
-        
+
         var product = new Product
         {
             Name = dto.Name,
@@ -149,24 +154,24 @@ public class ProductController : ControllerBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        
+
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
-        
+
         // Brand ve Category yükle
         await _context.Entry(product).Reference(p => p.Brand).LoadAsync();
         await _context.Entry(product).Reference(p => p.Category).LoadAsync();
-        
+
         var productDto = ToListDto(product);
         return CreatedAtAction(
-            nameof(GetBySlug), 
-            new { slug = product.Slug }, 
+            nameof(GetBySlug),
+            new { slug = product.Slug },
             ApiResponse<ProductResponseDto>.SuccessResponse(productDto, "Ürün başarıyla oluşturuldu", 201)
         );
     }
-    
+
     /// <summary>
-    /// Ürün güncelle - Sadece Admin (fiyat/stok yok, sadece tanım)
+    /// Ürün güncelle - Sadece Admin
     /// PUT /api/Product/{id}
     /// </summary>
     [HttpPut("{id:int}")]
@@ -174,62 +179,59 @@ public class ProductController : ControllerBase
     public async Task<IActionResult> Update(int id, ProductUpdateDto dto)
     {
         var product = await _context.Products.FindAsync(id);
+
         if (product == null)
             throw new NotFoundException($"ID: {id} olan ürün bulunamadı.");
 
-        // Slug benzersiz mi?
-        bool slugExists = await _context.Products
-            .AnyAsync(p => p.Slug == dto.Slug && p.ProductId != id);
 
-        if (slugExists)
-            throw new ConflictException($"'{dto.Slug}' slug'ı başka bir ürün tarafından kullanılıyor.");
-
-        // Marka var mı?
-        if (dto.BrandId.HasValue)
+        if (!string.IsNullOrEmpty(dto.Slug) && dto.Slug != product.Slug)
         {
-            bool brandExists = await _context.Brands.AnyAsync(b => b.BrandId == dto.BrandId);
+            var isSlugTaken = await _context.Products
+                .AnyAsync(x => x.Slug == dto.Slug && x.ProductId != id);
+
+            if (isSlugTaken)
+                throw new BadRequestException($"'{dto.Slug}' bağlantısı (slug) başka bir ürün tarafından kullanılıyor.");
+
+            product.Slug = dto.Slug;
+        }
+
+
+        if (dto.BrandId.HasValue && dto.BrandId != product.BrandId)
+        {
+            var brandExists = await _context.Brands.AnyAsync(x => x.BrandId == dto.BrandId);
             if (!brandExists)
-                throw new NotFoundException($"ID: {dto.BrandId} olan marka bulunamadı.");
+                throw new NotFoundException("Seçilen marka sistemde bulunamadı.");
+
+            product.BrandId = dto.BrandId;
         }
-        
-        // Kategori var mı?
-        if (dto.CategoryId.HasValue)
+
+
+        if (dto.CategoryId.HasValue && dto.CategoryId != product.CategoryId)
         {
-            bool categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
+            var categoryExists = await _context.Categories.AnyAsync(x => x.CategoryId == dto.CategoryId);
             if (!categoryExists)
-                throw new NotFoundException($"ID: {dto.CategoryId} olan kategori bulunamadı.");
+                throw new NotFoundException("Seçilen kategori sistemde bulunamadı.");
+
+            product.CategoryId = dto.CategoryId;
         }
-        
-        product.Name = dto.Name;
-        product.Slug = dto.Slug;
-        product.Description = dto.Description;
-        product.BrandId = dto.BrandId;
-        product.CategoryId = dto.CategoryId;
-        product.ImageUrl = dto.ImageUrl;
-        product.ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null;
-        product.MetaTitle = dto.MetaTitle;
-        product.MetaDescription = dto.MetaDescription;
-        
-        // Ürün pasif yapılırsa tüm satış ilanlarını da pasif yap
-        if (product.IsActive && !dto.IsActive)
-        {
-            var listings = await _context.Listings
-                .Where(sp => sp.ProductId == id)
-                .ToListAsync();
-            
-            foreach (var sp in listings)
-            {
-                sp.IsActive = false;
-            }
-        }
-        
-        product.IsActive = dto.IsActive;
+
+
+        if (!string.IsNullOrEmpty(dto.Name)) product.Name = dto.Name;
+        if (!string.IsNullOrEmpty(dto.Description)) product.Description = dto.Description;
+        if (!string.IsNullOrEmpty(dto.ImageUrl)) product.ImageUrl = dto.ImageUrl;
+        if (!string.IsNullOrEmpty(dto.MetaTitle)) product.MetaTitle = dto.MetaTitle;
+        if (!string.IsNullOrEmpty(dto.MetaDescription)) product.MetaDescription = dto.MetaDescription;
+
+        if (dto.IsActive.HasValue) product.IsActive = dto.IsActive.Value;
+
+        // Güncelleme tarihini yenile
         product.UpdatedAt = DateTime.UtcNow;
-        
+
         await _context.SaveChangesAsync();
-        return Ok(ApiResponse.SuccessResponse("Ürün başarıyla güncellendi"));
+
+        return Ok(ApiResponse<ProductResponseDto>.SuccessResponse(ToDetailDto(product), "Ürün başarıyla güncellendi."));
     }
-    
+
     /// <summary>
     /// Ürün sil - Sadece Admin
     /// DELETE /api/Product/{id}
@@ -243,7 +245,7 @@ public class ProductController : ControllerBase
             .Include(p => p.Reviews)
             .Include(p => p.WishlistItems)
             .FirstOrDefaultAsync(p => p.ProductId == id);
-            
+
         if (product == null)
             throw new NotFoundException($"ID: {id} olan ürün bulunamadı.");
 
@@ -258,28 +260,28 @@ public class ProductController : ControllerBase
         // Manuel silme: Reviews ve WishlistItems (Product'a bağlı)
         _context.Reviews.RemoveRange(product.Reviews);
         _context.WishlistItems.RemoveRange(product.WishlistItems);
-        
+
         // Product silinince Cascade ile otomatik silinecekler:
         // - SellerProducts (Cascade)
         // - CartItems (SellerProduct üzerinden Cascade)
         _context.Products.Remove(product);
-        
+
         await _context.SaveChangesAsync();
 
         return Ok(ApiResponse.SuccessResponse("Ürün başarıyla silindi"));
     }
-    
+
     // ==========================================
     // HELPER METHODS
     // ==========================================
-    
+
     /// <summary>
     /// Liste için DTO (satıcı detayı yok, sadece min fiyat)
     /// </summary>
     private ProductResponseDto ToListDto(Product p)
     {
         var activeSellers = p.Listings?.Where(sp => sp.IsActive).ToList() ?? new List<Listing>();
-        
+
         return new ProductResponseDto
         {
             ProductId = p.ProductId,
@@ -295,10 +297,10 @@ public class ProductController : ControllerBase
 
             ImageUrl = p.ImageUrl,
             ImageGallery = ParseImageGallery(p.ImageGalleryJson),
-            
+
             MetaTitle = p.MetaTitle,
             MetaDescription = p.MetaDescription,
-            
+
             IsActive = p.IsActive,
             ReviewCount = p.ReviewCount,
 
@@ -313,21 +315,21 @@ public class ProductController : ControllerBase
                 StoreLogoUrl = p.CreatedBySeller.StoreLogoUrl,
                 IsStoreVerified = p.CreatedBySeller.IsStoreVerified
             } : null,
-            
+
             // Satıcı özeti
             MinPrice = activeSellers.Any() ? activeSellers.Min(sp => sp.UnitPrice) : null,
             SellerCount = activeSellers.Count,
             Sellers = null  // Liste'de satıcı detayı yok
         };
     }
-    
+
     /// <summary>
     /// Detay için DTO (tüm satıcılarla birlikte)
     /// </summary>
     private ProductResponseDto ToDetailDto(Product p)
     {
         var dto = ToListDto(p);
-        
+
         // Satıcıları ekle
         dto.Sellers = p.Listings?
             .Where(sp => sp.IsActive)
@@ -347,10 +349,10 @@ public class ProductController : ControllerBase
                 ShippingCost = sp.ShippingCost
             })
             .ToList();
-        
+
         return dto;
     }
-    
+
     private List<string>? ParseImageGallery(string? json)
     {
         if (string.IsNullOrEmpty(json)) return null;

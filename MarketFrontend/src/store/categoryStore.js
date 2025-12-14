@@ -1,11 +1,13 @@
 import { create } from "zustand";
-import { fetchCategoryTree } from "../services/CategoryService";
+import { fetchCategories, fetchCategoryTree } from "../services/CategoryService";
+import { data } from "react-router-dom";
 
 export const useCategoryStore = create((set) => ({
+  categories : [],
   tree: [],
   loading: false,
   error: null,
-
+  
   fetchTree: async () => {
     set({ loading: true, error: null });
     try {
@@ -18,4 +20,10 @@ export const useCategoryStore = create((set) => ({
       });
     }
   },
+  fetchCategories : async () => {
+    set({ loading: true });
+    const res = await fetchCategories();
+    
+    set({ categories: res.data.data, loading: false });
+  }
 }));

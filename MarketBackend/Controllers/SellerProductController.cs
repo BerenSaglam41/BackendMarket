@@ -48,12 +48,12 @@ public class SellerProductController : ControllerBase
         var query = _context.ProductPendings
             .Include(p => p.Brand)
             .Include(p => p.Category)
-            .Where(p => p.SellerId == user.Id);
+            .Where(p => p.SellerId == user.Id && user.IsActive); // Added seller active check
 
         // Status filtresi
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<PendingStatus>(status, true, out var parsedStatus))
         {
-            query = query.Where(p => p.Status == parsedStatus);
+            query = query.Where(p => p.Status == parsedStatus && user.IsActive); // Added seller active check
         }
 
         var totalCount = await query.CountAsync();
@@ -114,8 +114,9 @@ public class SellerProductController : ControllerBase
 
         // Slug benzersizlik kontrolü (hem Product hem ProductPending'de)
         bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
-        bool slugExistsInPending = await _context.ProductPendings.AnyAsync(p => p.Slug == dto.Slug);
-        
+        bool slugExistsInPending = await _context.ProductPendings
+            .AnyAsync(p => p.Slug == dto.Slug && p.Status != PendingStatus.Rejected);
+
         if (slugExistsInProducts || slugExistsInPending)
             throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor. Lütfen benzersiz bir slug seçin.");
 
@@ -180,7 +181,7 @@ public class SellerProductController : ControllerBase
     /// Ürün önerisini günceller (Sadece Waiting veya NeedsUpdate durumunda)
     /// PUT /api/seller/products/{id}
     /// </summary>
-    [HttpPut("products/{id:int}")]
+[HttpPut("products/{id:int}")]
     public async Task<IActionResult> UpdatePendingProduct(int id, SellerProductUpdateDto dto)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -191,65 +192,49 @@ public class SellerProductController : ControllerBase
             .FirstOrDefaultAsync(p => p.ProductPendingId == id && p.SellerId == user.Id);
 
         if (pending == null)
-            throw new NotFoundException($"ID '{id}' ile ürün önerisi bulunamadı.");
+            throw new NotFoundException("Düzenlenecek ürün başvurusu bulunamadı.");
 
-        // Sadece Waiting veya NeedsUpdate durumunda güncellenebilir
-        if (pending.Status != PendingStatus.Waiting && pending.Status != PendingStatus.NeedsUpdate)
-            throw new BadRequestException("Bu ürün önerisi artık güncellenemez.");
+        if (pending.Status == PendingStatus.Approved)
+             throw new BadRequestException("Onaylanmış ürünler üzerinde işlem yapamazsınız.");
 
-        // Slug benzersizlik kontrolü (kendisi hariç)
-        bool slugExistsInProducts = await _context.Products.AnyAsync(p => p.Slug == dto.Slug);
-        bool slugExistsInPending = await _context.ProductPendings
-            .AnyAsync(p => p.Slug == dto.Slug && p.ProductPendingId != id);
 
-        if (slugExistsInProducts || slugExistsInPending)
-            throw new ConflictException($"'{dto.Slug}' slug'ı zaten kullanılıyor.");
-
-        // Brand kontrolü
-        if (dto.BrandId.HasValue)
+        if (!string.IsNullOrEmpty(dto.Slug) && dto.Slug != pending.Slug)
         {
-            var brandExists = await _context.Brands.AnyAsync(b => b.BrandId == dto.BrandId);
-            if (!brandExists)
-                throw new NotFoundException($"ID '{dto.BrandId}' ile marka bulunamadı.");
+            var newSlug = dto.Slug.Trim().ToLowerInvariant();
+
+            var slugExistsInPending = await _context.ProductPendings
+                .AnyAsync(x => x.Slug == newSlug && x.ProductPendingId != id && x.Status != PendingStatus.Rejected);
+
+            var slugExistsInProducts = await _context.Products
+                .AnyAsync(x => x.Slug == newSlug);
+
+            if (slugExistsInPending || slugExistsInProducts)
+                throw new BadRequestException("Bu URL (slug) zaten kullanımda, lütfen başka bir tane belirleyin.");
+
+            pending.Slug = newSlug;
         }
 
-        // Category kontrolü
-        if (dto.CategoryId.HasValue)
-        {
-            var categoryExists = await _context.Categories.AnyAsync(c => c.CategoryId == dto.CategoryId);
-            if (!categoryExists)
-                throw new NotFoundException($"ID '{dto.CategoryId}' ile kategori bulunamadı.");
-        }
+        if (!string.IsNullOrEmpty(dto.Name)) pending.Name = dto.Name;
+        if (!string.IsNullOrEmpty(dto.Description)) pending.Description = dto.Description;
+        if (!string.IsNullOrEmpty(dto.SellerSku)) pending.SellerSku = dto.SellerSku;
+        if (!string.IsNullOrEmpty(dto.AttributesJson)) pending.AttributesJson = dto.AttributesJson;
+        if (!string.IsNullOrEmpty(dto.ImageUrl)) pending.ImageUrl = dto.ImageUrl; // Resim değişebilir
+        
 
-        // Güncelle
-        pending.Name = dto.Name;
-        pending.Slug = dto.Slug;
-        pending.Description = dto.Description;
-        pending.BrandId = dto.BrandId;
-        pending.CategoryId = dto.CategoryId;
-        pending.SellerCategorySuggestion = dto.SellerCategorySuggestion;
-        pending.ImageUrl = dto.ImageUrl;
-        pending.UpdatedAt = DateTime.UtcNow;
-        pending.ImageGalleryJson = dto.ImageGallery != null ? JsonSerializer.Serialize(dto.ImageGallery) : null;
-        pending.SellerSku = dto.SellerSku;
-        pending.Barcode = dto.Barcode;
-        pending.AttributesJson = dto.AttributesJson;
-        pending.SellerNote = dto.SellerNote;
-        pending.ProposedPrice = dto.ProposedPrice;
+        pending.ProposedPrice = dto.ProposedPrice; 
         pending.ProposedStock = dto.ProposedStock;
         pending.ShippingTimeInDays = dto.ShippingTimeInDays;
 
-        // NeedsUpdate durumundaysa tekrar Waiting'e al
         if (pending.Status == PendingStatus.NeedsUpdate)
         {
             pending.Status = PendingStatus.Waiting;
         }
 
-        await _context.SaveChangesAsync();
+        pending.UpdatedAt = DateTime.UtcNow;
 
-        return Ok(ApiResponse.SuccessResponse(
-            "Ürün öneriniz başarıyla güncellendi."
-        ));
+        await _context.SaveChangesAsync();
+        
+        return Ok(ApiResponse.SuccessResponse("Ürün güncelleme başvurunuz alındı."));
     }
 
     /// <summary>

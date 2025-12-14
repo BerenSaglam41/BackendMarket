@@ -97,8 +97,8 @@ public class ProductCreateDto
 /// </summary>
 public class ProductUpdateDto
 {
-    public required string Name { get; set; }
-    public required string Slug { get; set; }
+    public string? Name { get; set; }
+    public string? Slug { get; set; }
 
     public string? Description { get; set; }
 
@@ -111,5 +111,5 @@ public class ProductUpdateDto
     public string? MetaTitle { get; set; }
     public string? MetaDescription { get; set; }
     
-    public bool IsActive { get; set; }
+    public bool? IsActive { get; set; } 
 }

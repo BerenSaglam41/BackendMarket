@@ -4,3 +4,7 @@ export const fetchCategoryTree = async () => {
   const res = await api.get("/category/tree",{ silent: true });
   return res.data.data;
 };
+
+export const fetchCategories = async () => {
+  return api.get("/category",{silent: true});
+}

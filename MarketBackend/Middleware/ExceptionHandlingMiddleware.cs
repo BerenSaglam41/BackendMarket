@@ -27,6 +27,19 @@ public class ExceptionHandlingMiddleware
     {
         try
         {
+            var user = context.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                var isActive = bool.Parse(user.FindFirst("IsActive")?.Value ?? "true");
+                var isBanned = bool.Parse(user.FindFirst("IsBanned")?.Value ?? "false");
+
+                if (!isActive)
+                    throw new ForbiddenException("Hesabınız pasif durumda.");
+
+                if (isBanned)
+                    throw new ForbiddenException("Hesabınız banlanmıştır.");
+            }
+
             await _next(context);
         }
         catch (Exception ex)

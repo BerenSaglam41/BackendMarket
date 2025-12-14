@@ -11,11 +11,9 @@ public class ProductUpdateValidator : AbstractValidator<ProductUpdateDto>
     public ProductUpdateValidator()
     {
         RuleFor(p => p.Name)
-            .NotEmpty().WithMessage("Ürün adı zorunludur.")
             .MaximumLength(150).WithMessage("Ürün adı en fazla 150 karakter olabilir.");
 
         RuleFor(p => p.Slug)
-            .NotEmpty().WithMessage("Slug zorunludur.")
             .MaximumLength(180).WithMessage("Slug en fazla 180 karakter olabilir.")
             .Matches(@"^[a-z0-9]+(?:-[a-z0-9]+)*$")
             .WithMessage("Slug sadece küçük harf, rakam ve tire içerebilir.");
