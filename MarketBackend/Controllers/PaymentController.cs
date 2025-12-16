@@ -354,16 +354,16 @@ public class PaymentController : ControllerBase
     /// </summary>
     private async Task CreateOrderFromPayment(Models.Payment.Payment payment)
     {
-        // Sepet snapshot'ını deserialize et
+        // 1. Snapshot'ı oku
         var cartSnapshot = JsonSerializer.Deserialize<CartSnapshotDto>(payment.CartSnapshotJson);
         if (cartSnapshot == null)
             throw new BadRequestException("Sepet bilgisi bulunamadı.");
 
-        // Order number oluştur
+        // 2. Sipariş numarasını oluştur
         var random = new Random();
         var orderNumber = $"MKT-{DateTime.UtcNow:yyyyMMdd}-{random.Next(1000, 9999)}";
 
-        // Order oluştur
+        // 3. Order nesnesini hazırla
         var order = new Order
         {
             OrderNumber = orderNumber,
@@ -378,22 +378,45 @@ public class PaymentController : ControllerBase
             ShippingCost = cartSnapshot.ShippingCost,
             TotalAmount = cartSnapshot.TotalAmount,
             PaymentMethod = payment.PaymentMethod,
-            PaymentStatus = PaymentStatus.Paid,
+            
+            // DÜZELTME: Kapıda ödemeyse 'Pending', değilse 'Paid'
+            PaymentStatus = payment.PaymentMethod == PaymentMethod.CashOnDelivery 
+                            ? PaymentStatus.Pending 
+                            : PaymentStatus.Paid,
+            
             PaymentTransactionId = payment.TransactionId,
-            OrderStatus = OrderStatus.Processing,  // Ödeme alındı, işleme alındı
+            
+            // Sipariş 'Hazırlanıyor' olarak başlar
+            OrderStatus = OrderStatus.Processing, 
+            
             CreatedAt = DateTime.UtcNow,
             ProcessedAt = DateTime.UtcNow
         };
 
         _context.Orders.Add(order);
-        await _context.SaveChangesAsync();
+        // SaveChanges çağırmıyoruz, Transaction bütünlüğü için en sonda çağıracağız.
 
-        // OrderItem'ları oluştur
+        // 4. OrderItem'ları oluştur ve STOK DÜŞ
         foreach (var item in cartSnapshot.Items)
         {
+            // KRİTİK: Stok düşmeden önce son kez kontrol et!
+            // Ödeme süreci sırasında başkası almış olabilir.
+            var listing = await _context.Listings.FindAsync(item.ListingId);
+            
+            if (listing == null) 
+                throw new BadRequestException($"Ürün (ID: {item.ListingId}) artık mevcut değil. Ödemeniz iade edilecektir.");
+
+            if (listing.Stock < item.Quantity)
+                throw new BadRequestException($"'{item.ProductName}' için stok yetersiz kaldı. Ödemeniz iade edilecektir.");
+
+            // Stok düş
+            listing.Stock -= item.Quantity;
+
+            // OrderItem ekle
             var orderItem = new OrderItem
             {
-                OrderId = order.OrderId,
+                // OrderId henüz oluşmadı (EF Core navigation property ile halledecek)
+                Order = order, 
                 ProductId = item.ProductId,
                 ListingId = item.ListingId,
                 ProductName = item.ProductName,
@@ -407,59 +430,44 @@ public class PaymentController : ControllerBase
             };
 
             _context.OrderItems.Add(orderItem);
-
-            // Stok düş
-            var listing = await _context.Listings.FindAsync(item.ListingId);
-            if (listing != null)
-            {
-                listing.Stock -= item.Quantity;
-            }
         }
 
-        // Kupon kullanımını artır (varsa)
+        // 5. Kupon kullanımını artır
         if (!string.IsNullOrEmpty(payment.CouponCode))
         {
-            var coupon = await _context.Coupons
-                .FirstOrDefaultAsync(c => c.Code == payment.CouponCode);
+            var coupon = await _context.Coupons.FirstOrDefaultAsync(c => c.Code == payment.CouponCode);
             if (coupon != null)
             {
                 coupon.CurrentUsageCount++;
             }
-            // Kupon snapshot'ta vardı ama artık silinmişse sorun değil, fiyat zaten kaydedilmiş
         }
 
-        // Payment'a OrderId ekle
-        payment.OrderId = order.OrderId;
-
-        // Sepetteki checkout için seçili ürünleri temizle
+        // 6. Sepeti Temizle
         var cart = await _context.ShoppingCarts
             .Include(c => c.Items.Where(i => i.IsSelectedForCheckout))
             .FirstOrDefaultAsync(c => c.AppUserId == payment.AppUserId && c.IsActive);
 
         if (cart != null && cart.Items.Any())
         {
-            // Sadece checkout için seçili itemları sil
             _context.CartItems.RemoveRange(cart.Items);
             
-            // Sepette başka ürün kalmadıysa, yeni boş sepet oluştur
-            var remainingItems = await _context.CartItems
-                .CountAsync(ci => ci.ShoppingCartId == cart.ShoppingCartId);
-            
-            if (remainingItems == 0)
-            {
-                cart.IsActive = false;
-                var newCart = new ShoppingCart
-                {
-                    AppUserId = payment.AppUserId,
-                    IsActive = true,
-                    LastAccessed = DateTime.UtcNow
-                };
-                _context.ShoppingCarts.Add(newCart);
-            }
+            // NOT: Sepeti silip yeni oluşturmak yerine, sadece içini boşaltmak
+            // veritabanı ID bütünlüğü açısından daha sağlıklıdır. 
+            // Mevcut kodunuzdaki 'yeni sepet oluşturma' mantığını kaldırdım, sadece item siliyoruz.
         }
 
+        // 7. Payment ile Order'ı ilişkilendir (EF Core OrderId'yi otomatik atar ama garanti olsun)
+        // payment nesnesi zaten tracked durumda olduğu için sadece Order navigation'ını set etsek yeterdi
+        // ama Id ataması SaveChanges sonrası netleşir.
+        
+        // Hepsini tek transaction'da kaydet
+        await _context.SaveChangesAsync();
+        
+        // SaveChanges sonrası OrderId oluştu, Payment'ı güncelle
+        payment.OrderId = order.OrderId;
         await _context.SaveChangesAsync();
     }
+
 
     /// <summary>
     /// Kullanıcının ödemelerini listele

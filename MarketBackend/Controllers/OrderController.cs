@@ -33,6 +33,7 @@ public class OrderController : ControllerBase
         if (page <= 0) page = 1;
         if (pageSize <= 0 || pageSize > 100) pageSize = 10;
         if (pageSize > 50) pageSize = 50;
+        
         var query = _context.Orders
             .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
@@ -40,6 +41,7 @@ public class OrderController : ControllerBase
             .Include(o => o.BillingAddress)
             .Where(o => o.AppUserId == userId)
             .OrderByDescending(o => o.CreatedAt);
+            
         var totalCount = await query.CountAsync();
         var orders = await query
             .Skip((page - 1) * pageSize)
@@ -92,6 +94,7 @@ public class OrderController : ControllerBase
             "Siparişler başarıyla getirildi"
         ));
     }
+
     // ID ile sipariş getir
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetOrderById(int id)
@@ -153,7 +156,8 @@ public class OrderController : ControllerBase
         
         return Ok(ApiResponse<OrderResponseDto>.SuccessResponse(orderDto, "Sipariş detayları getirildi"));
     }
-    // Siparisi iptal et
+
+    // Siparisi iptal et (Müşteri)
     [HttpPost("{id:int}/cancel")]
     public async Task<IActionResult> CancelOrder(int id)
     {
@@ -178,7 +182,10 @@ public class OrderController : ControllerBase
         // Stokları geri ekle
         foreach (var item in order.Items)
         {
-            item.Listing.Stock += item.Quantity;
+            if (item.Listing != null)
+            {
+                item.Listing.Stock += item.Quantity;
+            }
         }
 
         order.OrderStatus = OrderStatus.Cancelled;
@@ -188,7 +195,8 @@ public class OrderController : ControllerBase
 
         return Ok(ApiResponse.SuccessResponse("Sipariş başarıyla iptal edildi."));
     }
-    // Tum siparisleri listele admin
+
+    // Tum siparisleri listele (Admin)
     [HttpGet("all")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAllOrders(string? orderStatus = null, string? paymentStatus = null, int page = 1, int pageSize = 20)
@@ -271,10 +279,10 @@ public class OrderController : ControllerBase
             "Tüm siparişler başarıyla getirildi"
         ));
     }
-    // Siparis durum guncelle (Seller)
+
     [HttpPut("{id:int}/status")]
     [Authorize(Roles = "Seller")]
-    public async Task<IActionResult> UpdateOrderStatus(int id, OrderUpdateStatusDto dto)
+    public async Task<IActionResult> UpdateOrderStatus(int id, [FromBody] OrderUpdateStatusDto dto)
     {
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrEmpty(userId))
@@ -282,39 +290,118 @@ public class OrderController : ControllerBase
 
         var order = await _context.Orders
             .Include(o => o.Items)
+                .ThenInclude(i => i.Listing)
             .FirstOrDefaultAsync(o => o.OrderId == id);
-            
+
         if (order == null)
             throw new NotFoundException("Sipariş bulunamadı.");
 
-        // Seller sadece kendi ürünlerinin bulunduğu siparişleri güncelleyebilir
+        // Sahiplik Kontrolü
         if (!order.Items.Any(i => i.SellerId == userId))
-            throw new ForbiddenException("Bu siparişi güncelleme yetkiniz yok.");
+            throw new ForbiddenException("Bu sipariş sizin ürünlerinizi içermiyor.");
 
-        // İptal edilmiş siparişin durumu değiştirilemez
-        if (order.OrderStatus == OrderStatus.Cancelled)
-            throw new BadRequestException("İptal edilmiş siparişin durumu değiştirilemez.");
+        // --- HIZLI ÇIKIŞ (PERFORMANS VE HATA ÖNLEME) ---
+        // Eğer durum zaten buysa, hiçbir şey yapma ve başarılı dön.
+        if (order.OrderStatus == dto.NewStatus)
+        {
+            return Ok(ApiResponse.SuccessResponse("Sipariş durumu zaten güncel."));
+        }
 
+        // Mantıksal Kontrol (Order nesnesini gönderiyoruz)
+        ValidateStatusTransition(order, dto.NewStatus);
+
+        // Güncelleme
         order.OrderStatus = dto.NewStatus;
 
-        if (dto.NewStatus == OrderStatus.Processing && !order.ProcessedAt.HasValue)
+        switch (dto.NewStatus)
         {
-            order.ProcessedAt = DateTime.UtcNow;
-        }
-        else if (dto.NewStatus == OrderStatus.Shipped)
-        {
-            order.ShippedAt = DateTime.UtcNow;
-            order.TrackingNumber = dto.TrackingNumber;
-            order.ShippingProvider = dto.ShippingProvider;
-        }
-        else if (dto.NewStatus == OrderStatus.Delivered)
-        {
-            order.DeliveredAt = DateTime.UtcNow;
+            case OrderStatus.Processing:
+                if (!order.ProcessedAt.HasValue) 
+                    order.ProcessedAt = DateTime.UtcNow;
+                break;
+
+            case OrderStatus.Shipped:
+                order.ShippedAt = DateTime.UtcNow;
+                order.TrackingNumber = dto.TrackingNumber;
+                break;
+
+            case OrderStatus.Delivered:
+                order.DeliveredAt = DateTime.UtcNow;
+                break;
+
+            case OrderStatus.Cancelled:
+                order.CancelledAt = DateTime.UtcNow;
+                order.CancellationReason = dto.CancellationReason;
+                // Stok iadesi
+                foreach (var item in order.Items)
+                {
+                    if (item.Listing != null) item.Listing.Stock += item.Quantity;
+                }
+                break;
+
+            case OrderStatus.Returned:
+                order.CancellationReason = dto.CancellationReason;
+                break;
         }
 
         await _context.SaveChangesAsync();
 
-        return Ok(ApiResponse.SuccessResponse("Sipariş durumu başarıyla güncellendi."));
+        return Ok(ApiResponse.SuccessResponse($"Sipariş durumu '{dto.NewStatus}' olarak güncellendi."));
+    }
+/// <summary>
+    /// Sipariş durum geçişlerinin mantıklı olup olmadığını kontrol eder.
+    /// </summary>
+    private void ValidateStatusTransition(Order order, OrderStatus newStatus)
+    {
+        // 1. AYNI DURUM KONTROLÜ (Hatanızın asıl çözümü burası olabilir)
+        // Eğer sipariş zaten "Processing" ise ve tekrar "Processing" isteniyorsa hata verme, işlemden çık.
+        if (order.OrderStatus == newStatus) return;
+
+        // 2. İPTAL/İADE KONTROLÜ
+        if (order.OrderStatus == OrderStatus.Cancelled || order.OrderStatus == OrderStatus.Returned)
+            throw new BadRequestException("İptal edilmiş veya iade alınmış siparişin durumu değiştirilemez.");
+
+        switch (newStatus)
+        {
+            case OrderStatus.Processing:
+                // Normalde sadece "AwaitingPayment"tan "Processing"e geçilir.
+                // ANCAK: Eğer sipariş zaten Ödenmiş (Paid) ise ve sistem bir şekilde AwaitingPayment'ta kalmışsa
+                // veya durum senkronizasyonu yapılıyorsa izin ver.
+                // Hata fırlatma koşulu: Şu anki durum AwaitingPayment DEĞİLSE.
+                if (order.OrderStatus != OrderStatus.AwaitingPayment)
+                {
+                    // Eğer zaten ileride bir aşamadaysa (Shipped, Delivered) geri dönemez.
+                    if (order.OrderStatus == OrderStatus.Shipped || order.OrderStatus == OrderStatus.Delivered)
+                         throw new BadRequestException($"Sipariş '{order.OrderStatus}' aşamasında, geriye dönük 'Hazırlanıyor' yapılamaz.");
+                         
+                    // Diğer durumlarda (örneğin sistem hatasıyla Paid ama AwaitingPayment değilse) 
+                    // burası loglanabilir ama şimdilik strict moda devam edelim.
+                    // Hatanın sebebi muhtemelen yukarıdaki "order.OrderStatus == newStatus" kontrolünün eksik olmasıydı.
+                }
+                break;
+
+            case OrderStatus.Shipped:
+                // Sadece "Hazırlanıyor" -> "Kargolandı" olabilir.
+                // Eğer sisteminizde "AwaitingPayment"tan direkt "Shipped"e geçiş varsa burayı esnetebilirsiniz.
+                if (order.OrderStatus != OrderStatus.Processing)
+                    throw new BadRequestException("Sipariş hazırlanmadan (Processing) kargoya verilemez.");
+                break;
+
+            case OrderStatus.Delivered:
+                if (order.OrderStatus != OrderStatus.Shipped)
+                    throw new BadRequestException("Sipariş kargoya verilmeden teslim edildi olarak işaretlenemez.");
+                break;
+
+            case OrderStatus.Returned:
+                if (order.OrderStatus != OrderStatus.Delivered)
+                    throw new BadRequestException("Teslim edilmemiş sipariş iade alınamaz.");
+                break;
+
+            case OrderStatus.Cancelled:
+                if (order.OrderStatus == OrderStatus.Shipped || order.OrderStatus == OrderStatus.Delivered)
+                    throw new BadRequestException("Kargoya verilmiş veya teslim edilmiş sipariş iptal edilemez. Lütfen iade sürecini kullanın.");
+                break;
+        }
     }
     // Seller siparisleri listele
     [HttpGet("seller")]
@@ -353,10 +440,11 @@ public class OrderController : ControllerBase
             PaymentMethod = o.PaymentMethod.ToString(),
             ShippingAddress = o.ShippingAddress.ToAddressDto(),
             BillingAddress = o.BillingAddress.ToAddressDto(),
-            Subtotal = o.Items.Sum(i => i.TotalPrice), // Sadece seller'ın ürünlerinin toplamı
+            // Dikkat: Burada toplam tutar sadece seller'ın kendi ürünlerinin toplamıdır.
+            Subtotal = o.Items.Sum(i => i.TotalPrice), 
             TaxAmount = o.Items.Sum(i => i.TotalPrice * i.TaxRate),
             DiscountAmount = o.Items.Sum(i => i.DiscountApplied),
-            ShippingCost = 0m, // Kargo seller bazlı hesaplanabilir
+            ShippingCost = 0m, 
             TotalAmount = o.Items.Sum(i => i.TotalPrice),
             ShippingProvider = o.ShippingProvider,
             TrackingNumber = o.TrackingNumber,

@@ -16,12 +16,19 @@ import AdminLayout from "../pages/admin/AdminLayout";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import SellerApplications from "../pages/admin/SellerApplication";
 // Seller
-import SellerDashboard from "../pages/SellerDashboard";
+import SellerDashboard from "../pages/seller/SellerDashboard";
 import AdminOrdersPage from "../pages/admin/AdminOrdersPage";
 import AdminPendingProductsPage from "../pages/admin/AdminPendingProductsPage";
 import AdminProductsPage from "../pages/admin/AdminProductsPage";
 import AdminAddProductPage from "../pages/admin/AdminAddProductPage";
 import AdminEditProductPage from "../pages/admin/AdminEditProductPage";
+import SellerLayout from "../pages/seller/SellerLayout";
+import SellerProductsPage from "../pages/seller/SellerProductsPage";
+import SellerPendingProductsPage from "../pages/seller/SellerPendingProductsPage";
+import SellerPendingProductsAddPage from "../pages/seller/SellerPendingProductsAddPage";
+import SellerPendingProductEditPage from "../pages/seller/SellerPendingProductEditPage";
+import SellerProductsEditPage from "../pages/seller/SellerProductsEditPage";
+import SellerOrdersPage from "../pages/seller/SellerOrdersPage";
 
 export default function AppRouter() {
   return (
@@ -74,6 +81,34 @@ export default function AppRouter() {
             />
           </Route>
         </Route>
+        <Route 
+          element={<RoleRoute allowedRoles={["Seller"]} />}
+        >
+          <Route path="/seller" element={<SellerLayout/>}>
+            <Route index element={<SellerDashboard />} />
+  
+              <Route path="pending-products"
+                element={<SellerPendingProductsPage/>}
+              />
+              <Route path="pending-products/add"
+                element={<SellerPendingProductsAddPage />}
+              />
+              <Route path="pending-products/edit/:id"
+                element={<SellerPendingProductEditPage />}
+              />
+              <Route path="products"
+                element={<SellerProductsPage/>}
+              />
+              <Route path="products/edit/:listingId"
+                element={<SellerProductsEditPage />}
+              />
+              <Route path="orders"
+                element={<SellerOrdersPage />}
+              />
+          </Route>
+        </Route>
+
+
 
         {/* ===== 404 (SONRA) ===== */}
         {/* <Route path="*" element={<NotFound />} /> */}

@@ -74,18 +74,27 @@ public class OrderCreateDtoValidator : AbstractValidator<OrderCreateDto>
             .When(x => !string.IsNullOrEmpty(x.CustomerNote));
     }
 }
+
 public class OrderUpdateStatusDtoValidator : AbstractValidator<OrderUpdateStatusDto>
 {
     public OrderUpdateStatusDtoValidator()
     {
         RuleFor(x => x.NewStatus)
-            .NotEmpty().WithMessage("New status is required.")
-            .IsInEnum().WithMessage("Invalid order status.");
-        
+            .IsInEnum().WithMessage("Geçersiz sipariş durumu.");
+
+        // Kural: Kargoya verildiyse Takip Numarası ZORUNLU
         When(x => x.NewStatus == OrderStatus.Shipped, () =>
         {
             RuleFor(x => x.TrackingNumber)
-                .NotEmpty().WithMessage("Tracking number is required when marking order as shipped.");
+                .NotEmpty().WithMessage("Sipariş kargoya verilirken takip numarası girilmelidir.")
+                .MaximumLength(50).WithMessage("Takip numarası çok uzun.");
+        });
+
+        // Kural: İptal edildiyse İptal Sebebi ZORUNLU (Opsiyonel ama iyi bir pratiktir)
+        When(x => x.NewStatus == OrderStatus.Cancelled, () =>
+        {
+            RuleFor(x => x.CancellationReason) // DTO'da Note veya Reason alanı varsa
+                .NotEmpty().WithMessage("Sipariş iptal edilirken bir sebep belirtilmelidir.");
         });
     }
-}   
+}

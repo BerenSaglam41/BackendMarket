@@ -22,6 +22,7 @@ public class Order
     public string? OrderSource { get; set; }                  // Web, iOS, Android
 
     public string? CustomerNote { get; set; }                 // "Kapıya bırakın"
+    public string? CancellationReason { get; set; }              // İptal sebebi
 
     // Fiyatlar
     public decimal Subtotal { get; set; }                     // Ürün toplam

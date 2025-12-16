@@ -27,6 +27,8 @@ export const useListingStore = create((set) => ({
         page,
         pageSize,
       });
+      console.log(res);
+      
       set({
         listings: res.data,
         pagination: res.pagination,

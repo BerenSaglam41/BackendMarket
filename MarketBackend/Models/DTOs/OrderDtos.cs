@@ -101,6 +101,7 @@ public class OrderUpdateStatusDto
     public OrderStatus NewStatus { get; set; }
     public string? TrackingNumber { get; set; }
     public string? ShippingProvider { get; set; }
+    public string? CancellationReason { get; set; }
 }
 
 // Helper method - Address to DTO converter

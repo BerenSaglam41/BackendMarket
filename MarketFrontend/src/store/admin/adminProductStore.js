@@ -17,9 +17,6 @@ export const useAdminProductStore = create((set, get) => ({
     isActive : null
   },
 
-  /* ======================
-     FETCH
-     ====================== */
   fetchProducts: async () => {
     const { page, pageSize, filters } = get();
     set({ loading: true });
@@ -31,7 +28,8 @@ export const useAdminProductStore = create((set, get) => ({
       brandId: filters.brandId || undefined,
       categoryId: filters.categoryId || undefined,
       isActive: filters.isActive ,
-    });
+    }); 
+    
     
     set({
       items: res.data.data,

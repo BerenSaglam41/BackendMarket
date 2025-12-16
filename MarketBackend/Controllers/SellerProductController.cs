@@ -48,12 +48,12 @@ public class SellerProductController : ControllerBase
         var query = _context.ProductPendings
             .Include(p => p.Brand)
             .Include(p => p.Category)
-            .Where(p => p.SellerId == user.Id && user.IsActive); // Added seller active check
+            .Where(p => p.SellerId == user.Id && user.IsActive); 
 
         // Status filtresi
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<PendingStatus>(status, true, out var parsedStatus))
         {
-            query = query.Where(p => p.Status == parsedStatus && user.IsActive); // Added seller active check
+            query = query.Where(p => p.Status == parsedStatus && user.IsActive); 
         }
 
         var totalCount = await query.CountAsync();
@@ -429,12 +429,15 @@ public class SellerProductController : ControllerBase
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
             throw new UnauthorizedException("Kullanıcı bulunamadı.");
-
+        
         var listing = await _context.Listings
             .FirstOrDefaultAsync(sp => sp.ListingId == id && sp.SellerId == user.Id);
 
         if (listing == null)
             throw new NotFoundException($"ID '{id}' ile satış bulunamadı.");
+        var product = await _context.Products.FindAsync(listing.ProductId);
+        
+        ValidateProductIsActive(product);
 
         listing.OriginalPrice = dto.OriginalPrice;
         listing.DiscountPercentage = dto.DiscountPercentage;
@@ -476,48 +479,6 @@ public class SellerProductController : ControllerBase
         ));
     }
 
-    // ==========================================
-    // DASHBOARD
-    // ==========================================
-
-    /// <summary>
-    /// Seller dashboard - Basit özet
-    /// GET /api/seller/dashboard
-    /// </summary>
-    [HttpGet("dashboard")]
-    public async Task<IActionResult> GetDashboard()
-    {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
-            throw new UnauthorizedException("Kullanıcı bulunamadı.");
-
-        var pendingCount = await _context.ProductPendings
-            .CountAsync(p => p.SellerId == user.Id && p.Status == PendingStatus.Waiting);
-
-        var activeListings = await _context.Listings
-            .CountAsync(sp => sp.SellerId == user.Id && sp.IsActive);
-
-        var totalOrders = await _context.OrderItems
-            .Where(oi => oi.SellerId == user.Id)
-            .Select(oi => oi.OrderId)
-            .Distinct()
-            .CountAsync();
-
-        var totalRevenue = await _context.OrderItems
-            .Where(oi => oi.SellerId == user.Id && oi.Order.PaymentStatus == PaymentStatus.Paid)
-            .SumAsync(oi => oi.TotalPrice);
-
-        return Ok(ApiResponse<object>.SuccessResponse(
-            new
-            {
-                PendingProducts = pendingCount,
-                ActiveListings = activeListings,
-                TotalOrders = totalOrders,
-                TotalRevenue = Math.Round(totalRevenue, 2)
-            },
-            "Dashboard verileri getirildi."
-        ));
-    }
 
     // ==========================================
     // HELPER METHODS
@@ -676,5 +637,14 @@ public class SellerProductController : ControllerBase
         }
 
         return slug;
+    }
+
+    private void ValidateProductIsActive(Product product)
+    {
+
+        if (product == null)
+            throw new BadRequestException("Ürün bulunamadı.");
+        if (!product.IsActive)
+            throw new BadRequestException("Bu ürün şu an aktif değil.");
     }
 }
