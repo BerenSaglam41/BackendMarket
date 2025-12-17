@@ -29,6 +29,7 @@ import SellerPendingProductsAddPage from "../pages/seller/SellerPendingProductsA
 import SellerPendingProductEditPage from "../pages/seller/SellerPendingProductEditPage";
 import SellerProductsEditPage from "../pages/seller/SellerProductsEditPage";
 import SellerOrdersPage from "../pages/seller/SellerOrdersPage";
+import SellerAddListPage from "../pages/seller/SellerAddListPage";
 
 export default function AppRouter() {
   return (
@@ -96,10 +97,13 @@ export default function AppRouter() {
               <Route path="pending-products/edit/:id"
                 element={<SellerPendingProductEditPage />}
               />
-              <Route path="products"
+              <Route path="lists"
                 element={<SellerProductsPage/>}
               />
-              <Route path="products/edit/:listingId"
+              <Route path="lists/add"
+                element={<SellerAddListPage />}
+              />
+              <Route path="lists/edit/:listingId"
                 element={<SellerProductsEditPage />}
               />
               <Route path="orders"

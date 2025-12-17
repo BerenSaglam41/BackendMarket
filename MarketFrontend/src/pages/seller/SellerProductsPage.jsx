@@ -59,11 +59,11 @@ export default function SellerProductsPage() {
         </div>
 
         <Link
-            to="/seller/pending-products/add"
+            to="/seller/lists/add"
             className="flex items-center gap-2 bg-orange-600 text-white px-5 py-2 rounded-xl hover:bg-orange-700 shadow-lg shadow-orange-600/20 transition active:scale-95 font-medium"
         >
             <PlusIcon className="w-5 h-5" />
-            Yeni Ürün Ekle
+            Yeni Liste Ekle
         </Link>
       </div>
 
@@ -217,7 +217,7 @@ export default function SellerProductsPage() {
                     <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Link
-                            to={`/seller/products/${p.productSlug}`} // Ürün detay linki varsa
+                            to={`/seller/lists/${p.productSlug}`} // Ürün detay linki varsa
                             className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                             title="Ürünü Görüntüle"
                         >
@@ -225,7 +225,7 @@ export default function SellerProductsPage() {
                         </Link>
 
                         <Link
-                            to={`/seller/products/edit/${p.listingId}`}
+                            to={`/seller/lists/edit/${p.listingId}`}
                             className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition"
                             title="Düzenle"
                         >

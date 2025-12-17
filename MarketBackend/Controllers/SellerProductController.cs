@@ -179,9 +179,9 @@ public class SellerProductController : ControllerBase
 
     /// <summary>
     /// Ürün önerisini günceller (Sadece Waiting veya NeedsUpdate durumunda)
-    /// PUT /api/seller/products/{id}
+    /// PUT /api/seller/lists/{id}
     /// </summary>
-[HttpPut("products/{id:int}")]
+    [HttpPut("products/{id:int}")]
     public async Task<IActionResult> UpdatePendingProduct(int id, SellerProductUpdateDto dto)
     {
         var user = await _userManager.GetUserAsync(User);

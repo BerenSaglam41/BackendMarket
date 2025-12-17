@@ -14,7 +14,7 @@ import {
 const MENU_ITEMS = [
   { name: "Dashboard", path: "/seller", icon: HomeIcon, end: true },
   { name: "Urun Basvurularim", path: "/seller/pending-products", icon: CubeIcon },
-  { name: "Urunlerim", path: "/seller/products", icon: CubeIcon },
+  { name: "Listelerim", path: "/seller/lists", icon: CubeIcon },
   { name: "Siparişler", path: "/seller/orders", icon: ShoppingBagIcon },
 ];
 

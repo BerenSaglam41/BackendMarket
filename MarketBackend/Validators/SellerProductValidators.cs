@@ -62,7 +62,7 @@ public class SellerProductCreateValidator : AbstractValidator<SellerProductCreat
 
         RuleFor(x => x.SellerNote)
             .MaximumLength(1000).WithMessage("Not en fazla 1000 karakter olabilir.");
-            
+
         RuleFor(x => x.SellerCategorySuggestion)
             .MaximumLength(200).WithMessage("Kategori önerisi en fazla 200 karakter olabilir.");
     }
@@ -76,7 +76,7 @@ public class SellerProductUpdateValidator : AbstractValidator<SellerProductUpdat
     public SellerProductUpdateValidator()
     {
         // Güncellemede sadece gönderilen (değişen) veriler kontrol edilir.
-        
+
         RuleFor(x => x.Name)
             .MinimumLength(3).WithMessage("Ürün adı en az 3 karakter olmalıdır.")
             .MaximumLength(200).WithMessage("Ürün adı en fazla 200 karakter olabilir.")
@@ -101,10 +101,10 @@ public class SellerProductUpdateValidator : AbstractValidator<SellerProductUpdat
 
         RuleFor(x => x.ShippingTimeInDays)
             .InclusiveBetween(1, 30).WithMessage("Kargo süresi 1-30 gün arasında olmalıdır.");
-            
+
         RuleFor(x => x.Description)
             .MaximumLength(5000).WithMessage("Açıklama en fazla 5000 karakter olabilir.");
-            
+
         RuleFor(x => x.SellerNote)
             .MaximumLength(1000).WithMessage("Not en fazla 1000 karakter olabilir.");
     }
@@ -122,7 +122,7 @@ public class SellerListingCreateValidator : AbstractValidator<SellerListingCreat
             .GreaterThan(0).WithMessage("Geçerli bir ürün ID'si belirtilmelidir.");
 
         RuleFor(x => x.OriginalPrice)
-            .NotEmpty().WithMessage("Fiyat zorunludur.")
+            .NotNull().WithMessage("Satış fiyatı zorunludur.")
             .GreaterThan(0).WithMessage("Fiyat 0'dan büyük olmalıdır.")
             .LessThanOrEqualTo(10_000_000).WithMessage("Fiyat limiti aşıldı.");
 
@@ -134,16 +134,18 @@ public class SellerListingCreateValidator : AbstractValidator<SellerListingCreat
         RuleFor(x => x.ShippingTimeInDays)
             .NotNull().WithMessage("Kargo süresi zorunludur.")
             .InclusiveBetween(1, 30).WithMessage("Kargo süresi 1-30 gün arasında olmalıdır.");
-            
+
         RuleFor(x => x.DiscountPercentage)
+            .NotNull().WithMessage("İndirim oranı zorunludur. İndirim yoksa '0' giriniz.")
             .InclusiveBetween(0, 99).WithMessage("İndirim oranı 0-99 arasında olmalıdır.");
 
         RuleFor(x => x.ShippingCost)
+            .NotNull().WithMessage("Kargo ücreti zorunludur. Ücretsiz kargo için '0' giriniz.")
             .GreaterThanOrEqualTo(0).WithMessage("Kargo ücreti negatif olamaz.")
             .LessThanOrEqualTo(1000).WithMessage("Kargo ücreti çok yüksek.");
-            
+
         RuleFor(x => x.SellerNote)
-            .MaximumLength(500).WithMessage("Satıcı notu en fazla 500 karakter olabilir.");
+            .MaximumLength(500).WithMessage("Not en fazla 500 karakter olabilir.");
     }
 }
 

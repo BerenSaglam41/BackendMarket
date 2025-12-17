@@ -12,7 +12,23 @@ export const useSellerListingStore = create((set, get) => ({
   totalPages: 0,
 
   setPage: (page) => set({ page }),
-
+  createListing: async (payload) => {
+    set({ loading: true, error: null });
+    try {
+      await SellerListingService.createListing(payload);
+      set({ page: 1 });
+      await get().fetchMyListings();
+      set({ loading: false });
+    } catch (err) {
+      set({
+        loading: false,
+        error:
+          err?.response?.data?.message ||
+          err?.message ||
+          "Satış oluşturulamadı.",
+      });
+    }
+},
   fetchMyListings: async ({ isActive } = {}) => {
     const { page, pageSize } = get();
     set({ loading: true, error: null });

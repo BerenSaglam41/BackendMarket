@@ -27,7 +27,7 @@ public class ProductController : ControllerBase
     /// GET /api/Product
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = "Admin,Seller")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll(
         [FromQuery] int? brandId = null,
         [FromQuery] int? categoryId = null,
@@ -321,6 +321,54 @@ public class ProductController : ControllerBase
             SellerCount = activeSellers.Count,
             Sellers = null  // Liste'de satıcı detayı yok
         };
+    }
+    [HttpGet("available-for-listing")]
+    [Authorize(Roles = "Seller")]
+    public async Task<IActionResult> GetAvailableForListing(
+    [FromQuery] string? search = null,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 20)
+    {
+        var sellerId = _userManager.GetUserId(User);
+        if (sellerId == null)
+            throw new UnauthorizedException("Kullanıcı bulunamadı.");
+
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = _context.Products
+            .Include(p => p.Brand)
+            .Include(p => p.Category)
+            .Where(p =>
+                p.IsActive &&
+                p.CreatedBySellerId == null &&
+                !_context.Listings.Any(l =>
+                    l.ProductId == p.ProductId &&
+                    l.SellerId == sellerId
+                )
+            );
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(p => p.Name.Contains(search));
+
+        var totalCount = await query.CountAsync();
+
+        var products = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var dtos = products.Select(ToListDto).ToList();
+
+        return Ok(PagedApiResponse<List<ProductResponseDto>>.SuccessResponse(
+            dtos,
+            page,
+            pageSize,
+            totalCount,
+            "Satışa açılabilir ürünler getirildi"
+        ));
     }
 
     /// <summary>

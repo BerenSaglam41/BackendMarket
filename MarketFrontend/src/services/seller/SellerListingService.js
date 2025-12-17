@@ -11,7 +11,9 @@ export const SellerListingService = {
       silent: true,
     });
   },
-
+  createListing : async (payload) => {
+    return api.post(`/seller/listings`, payload);
+  },
   
   updateListing: async (id, payload) => {
     return api.put(`/seller/listings/${id}`, payload);
