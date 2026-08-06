@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
